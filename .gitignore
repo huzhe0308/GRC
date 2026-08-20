@@ -1,0 +1,14 @@
+app.err
+app.log
+*.log
+config.yaml
+.jira_config
+contacts.json
+__pycache__/
+*.pyc
+node_modules/
+.env
+_archive_llm_wiki/
+runtime/
+debug/
+work/

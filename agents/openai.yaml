@@ -1,0 +1,4 @@
+interface:
+  display_name: "Daily Mail Wiki Report"
+  short_description: "Run scheduled Outlook-to-wiki analysis reports"
+  default_prompt: "Run the daily mail wiki report workflow."
