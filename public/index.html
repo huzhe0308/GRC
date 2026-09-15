@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>G.R.C. Agent</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">EW</div>
+          <div>
+            <p class="brand-kicker">Local Demo</p>
+            <h1>G.R.C. Agent</h1>
+            <p class="brand-note">Governance. Regulation. Compliance</p>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav active" data-view="dashboard">Dashboard</button>
+          <button class="nav" data-view="assessment">Assessment Allocation</button>
+          <button class="nav" data-view="gapTracking">Assessment Tracking</button>
+          <button class="nav" data-view="analysis">Analysis Module</button>
+          <button class="nav" data-view="wiki">Regulations Wiki</button>
+        </nav>
+
+
+      </aside>
+
+      <main class="workspace">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">G.R.C. Agent</p>
+            <h2 id="viewTitle">Dashboard</h2>
+            <p class="hero-copy">Assessment Allocation → Gap Tracking → Monthly Report</p>
+          </div>
+          <div class="hero-actions">
+            <button id="refreshAll" class="ghost">Refresh</button>
+            <button id="quickAction" class="primary">Quick Actions</button>
+          </div>
+        </header>
+
+                <section id="dashboard" class="view active">
+          <div class="dash-workflow">
+            <div class="wf-step active">
+              <div class="wf-dot">1</div>
+              <span class="wf-label">Assessment Allocation</span>
+            </div>
+            <div class="wf-line"></div>
+            <div class="wf-step active">
+              <div class="wf-dot">2</div>
+              <span class="wf-label">Assessment Tracking</span>
+            </div>
+            <div class="wf-line"></div>
+            <div class="wf-step">
+              <div class="wf-dot">3</div>
+              <span class="wf-label">Monthly Report</span>
+            </div>
+          </div>
+          <div class="dash-grid">
+            <div class="dash-card" id="dash-m1">
+              <div class="dash-card-head">
+                <div class="dash-card-badge m1-badge">📋</div>
+                <div class="dash-card-meta">
+                  <h3>Assessment Allocation</h3>
+                  <p id="m1TaskCount">Loading...</p>
+                </div>
+                <button class="dash-sm-btn" onclick="scanEmailsForTasks(); switchView('assessment')">Scan Emails</button>
+              </div>
+              <div id="m1Tasks" class="dash-list"></div>
+              <div class="dash-card-foot">
+                <button class="dash-cta m1-cta" onclick="switchView('assessment')">Go to Assessment</button>
+              </div>
+            </div>
+
+            <div class="dash-card" id="dash-m2">
+              <div class="dash-card-head">
+                <div class="dash-card-badge m2-badge">📊</div>
+                <div class="dash-card-meta">
+                  <h3>Assessment Tracking</h3>
+                  <p id="m2TaskCount">Loading...</p>
+                </div>
+                <button class="dash-sm-btn" onclick="switchView('gapTracking')">View Details</button>
+              </div>
+              <div id="m2Tasks" class="dash-list"></div>
+              <div class="dash-card-foot">
+                <button class="dash-cta m2-cta" onclick="switchView('gapTracking')">Go to Gap Tracking</button>
+              </div>
+            </div>
+
+            <div class="dash-card" id="dash-m3">
+              <div class="dash-card-head">
+                <div class="dash-card-badge m3-badge">📈</div>
+                <div class="dash-card-meta">
+                  <h3>Monthly Report</h3>
+                  <p id="m3TaskCount">Loading...</p>
+                </div>
+                <button class="dash-sm-btn" onclick="switchView('analysis')">View Details</button>
+              </div>
+              <div id="m3Tasks" class="dash-list"></div>
+              <div class="dash-card-foot">
+                <button class="dash-cta m3-cta" onclick="switchView('analysis')">Go to Monthly Report</button>
+              </div>
+            </div>
+          </div>
+        </section>
+<section id="assessment" class="view">
+          <div class="assessment-layout">
+            <div class="panel task-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>🎯 Assessment Tasks</h3>
+                  <p>New tasks auto-identified from emails</p>
+                </div>
+                <div class="toolbar">
+                  <button id="scanEmails" class="primary">Scan Emails</button>
+                  <button id="clearTasks" class="ghost" title="Clear task list">Clear</button>
+                  <span id="taskCount" class="pill">0</span>
+                </div>
+              </div>
+              <div id="taskList" class="task-list"></div>
+            </div>
+
+            <div class="panel detail-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>📋 Task Details</h3>
+                  <p id="taskDetailTitle">Select a task to view details</p>
+                </div>
+              </div>
+              <div id="taskDetail" class="task-detail">
+                <div class="empty-block">Please select a task from the left</div>
+              </div>
+              <div class="toolbar" id="taskActions" style="display:none;">
+                <button id="viewParentTicket" class="ghost">View Parent Ticket</button>
+                <button id="parsePVS" class="primary">Parse PSV Table</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="panel result-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>📊 Layer3 Regulation Match Results</h3>
+                  <p>Regulation entries matched from PSV table</p>
+                </div>
+                <div class="toolbar">
+                  <button id="sendAssessment" class="danger" disabled>Send Assessment</button>
+                </div>
+              </div>
+              <div id="pvsResults" class="pvs-results">
+                <div class="empty-block">Parse PSV table to show results</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="contacts-section">
+            <div class="panel contacts-panel">
+              <div class="panel-head">
+                <div>
+                  <h3>👥 Contact Management</h3>
+                  <p>Maintain evaluators, assign by topic</p>
+                </div>
+                <div class="toolbar">
+                  <button id="addContact" class="primary">Add Contact</button>
+                  <button id="refreshContacts" class="ghost">Refresh</button>
+                </div>
+              </div>
+              <div id="contactsList" class="contacts-list">
+                <div class="empty-block">Loading contacts...</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="analysis" class="view">
+          <div class="analysis-layout">
+            <section class="panel analysis-tools">
+              <div class="panel-head">
+                <div>
+                  <h3>Analysis Tools</h3>
+                  <p>Analysis, objective conclusions, action recommendations</p>
+                </div>
+              </div>
+              <div class="analysis-actions">
+                <div class="analysis-hero-row">
+                  <button id="verifyMarketOverview" class="hero-btn hero-blue">
+                    <span class="hero-icon">📊</span>
+                    <span class="hero-label">Market Overview</span>
+                    <span class="hero-desc">Export market Layer3 compliance status overview</span>
+                  </button>
+                  <button id="verifyAllTopics" class="hero-btn hero-purple">
+                    <span class="hero-icon">📋</span>
+                    <span class="hero-label">All Topics Review</span>
+                    <span class="hero-desc">5 domains · Jira comments · real-time data</span>
+                  </button>
+                </div>
+                <div class="analysis-section">
+                  <h4>Topic Comments</h4>
+                  <div class="domain-grid">
+                    <button id="verifyOBDData" class="action-btn">
+                      <span class="action-icon">📡</span>
+                      <span class="action-text">OBD</span>
+                    </button>
+                    <button id="verifyFuSa" class="action-btn">
+                      <span class="action-icon">🛡️</span>
+                      <span class="action-text">FuSa</span>
+                    </button>
+                    <button id="verifyCyberSecurity" class="action-btn">
+                      <span class="action-icon">🔐</span>
+                      <span class="action-text">Cybersecurity</span>
+                    </button>
+                    <button id="verifyOTA" class="action-btn">
+                      <span class="action-icon">🔄</span>
+                      <span class="action-text">OTA</span>
+                    </button>
+                    <button id="verifyImmobilizer" class="action-btn">
+                      <span class="action-icon">🔒</span>
+                      <span class="action-text">Immobilizer</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="analysis-section">
+                  <h4>Monthly Report</h4>
+                  <button id="sendMonthlyReport" class="action-btn">
+                    <span class="action-icon">📧</span>
+                    <span class="action-text">Send Monthly Report</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel analysis-output">
+              <div class="panel-head">
+                <div>
+                  <h3>Analysis Output</h3>
+                  <p id="analysisStatus">Select an analysis tool to begin</p>
+                </div>
+                <div class="toolbar">
+                  <button id="toggleAnalysisView" class="ghost small" disabled>Raw View</button>
+                  <button id="exportAnalysis" class="ghost" disabled>Export</button>
+                  <button id="copyAnalysis" class="ghost" disabled>Copy</button>
+                </div>
+              </div>
+              <div id="thinkingArea" class="thinking-area" role="status" aria-live="polite" aria-expanded="false" aria-controls="analysisResult" hidden>
+                <div class="thinking-header">
+                  <div class="thinking-title">
+                    <span class="thinking-spinner" aria-hidden="true"></span>
+                    <span id="thinkingStatus">Thinking...</span>
+                  </div>
+                  <div class="thinking-actions">
+                    <button id="cancelAnalysis" class="ghost small" title="Cancel request" aria-label="Cancel analysis request">Cancel</button>
+                    <button id="retryAnalysis" class="ghost small" hidden title="Retry" aria-label="Retry">Retry</button>
+                    <button id="toggleThinking" class="ghost small" aria-expanded="false" aria-controls="thinkingBody" title="Expand/Collapse">▼</button>
+                  </div>
+                </div>
+                <div id="thinkingBody" class="thinking-body" aria-hidden="true">
+                  <ul id="thinkingSteps" class="thinking-steps" aria-label="Analysis steps"></ul>
+                </div>
+              </div>
+              <div id="analysisResult" class="analysis-result empty">
+                <div class="analysis-placeholder">Analysis results will appear here...</div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="wiki" class="view">
+          <div class="wiki-layout">
+            <section class="panel wiki-browser">
+              <div class="panel-head">
+                <div>
+                  <h3>Wiki Library</h3>
+                  <p>Browse folders, click a page to preview.</p>
+                </div>
+                <div class="toolbar">
+                  <button id="expandAll" class="ghost small">Expand All</button>
+                  <button id="collapseAll" class="ghost small">Collapse All</button>
+                </div>
+              </div>
+              <div class="wiki-toolbar">
+                <input id="wikiSearchInput" placeholder="Search Wiki, e.g.: functional safety OTA" />
+                <button id="wikiSearchBtn" class="primary">Search</button>
+                <button id="wikiSearchSemanticBtn" class="ghost" title="LLM semantic search: understands intent, better results">Semantic Search</button>
+                <button id="loadWiki" class="ghost">Reload Tree</button>
+              </div>
+              <div id="wikiSearchSummary" class="search-summary"></div>
+              <div id="wikiSearchResults" class="search-results"></div>
+              <div class="section-label">
+                <span>Content Tree</span>
+                <span id="wikiItemCount" class="pill">0</span>
+              </div>
+              <div id="wikiTree" class="tree-root"></div>
+            </section>
+
+            <section class="panel wiki-preview-panel">
+              <div class="panel-head">
+                <div>
+                  <h3 id="wikiDocTitle">Wiki Preview</h3>
+                  <p id="wikiBreadcrumb">Please select a Wiki page.</p>
+                </div>
+                <div id="wikiMeta" class="meta-inline"></div>
+              </div>
+              <article id="wikiPreview" class="markdown empty">Select a page on the left, or search first.</article>
+            </section>
+          </div>
+        </section>
+
+        <section id="jira" class="view">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Jira Tickets</h3>
+                <p id="jiraStatus">View Jira tickets assigned to you (current: cached data)</p>
+              </div>
+              <div class="toolbar">
+                <button id="loadJira" class="primary">Refresh Tickets</button>
+                <button id="opencodeRefresh" class="ghost" title="Fetch real-time data via opencode">Refresh via Opencode</button>
+                <span id="jiraCount" class="pill">0</span>
+              </div>
+            </div>
+            <div class="jira-toolbar">
+              <input id="jiraSearchInput" placeholder="JQL query, e.g.: project = CEADU" />
+              <button id="jiraSearchBtn" class="ghost">Search</button>
+            </div>
+            <div class="split">
+              <div id="jiraList" class="stack scroll-pane"></div>
+              <div id="jiraDetail" class="preview empty">Please select a Jira ticket to view details.</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="automation" class="view">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Auto Monitor</h3>
+                <p>Periodically check emails and Jira tickets, auto-generate reports.</p>
+              </div>
+              <span id="automationState" class="pill">Off</span>
+            </div>
+            <div class="automation-section">
+              <h4>Email Monitor</h4>
+              <div class="automation-grid">
+                <label>
+                  Frequency
+                  <select id="emailInterval">
+                    <option value="daily">Daily</option>
+                    <option value="hourly">Hourly</option>
+                    <option value="6h">Every 6 hours</option>
+                  </select>
+                </label>
+                <label class="switch">
+                  <input id="emailAutoSend" type="checkbox" />
+                  <span>Auto-send reports</span>
+                </label>
+                <label class="switch">
+                  <input id="emailForceRun" type="checkbox" />
+                  <span>Force run</span>
+                </label>
+              </div>
+            </div>
+            <div class="automation-section">
+              <h4>Jira Monitor</h4>
+              <div class="automation-grid">
+                <label>
+                  Frequency
+                  <select id="jiraInterval">
+                    <option value="daily">Daily</option>
+                    <option value="hourly">Hourly</option>
+                    <option value="6h">Every 6 hours</option>
+                  </select>
+                </label>
+                <label class="switch">
+                  <input id="jiraAlertNew" type="checkbox" checked />
+                  <span>New ticket alerts</span>
+                </label>
+                <label class="switch">
+                  <input id="jiraForceRun" type="checkbox" />
+                  <span>Force refresh</span>
+                </label>
+              </div>
+            </div>
+            <div class="toolbar">
+              <button id="startAutomation" class="primary">Start Monitor</button>
+              <button id="stopAutomation" class="ghost">Stop Monitor</button>
+            </div>
+            <pre id="automationLog" class="preview">No auto-monitor log yet.</pre>
+          </div>
+        </section>
+
+        <section id="gapTracking" class="view">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>Assessment Tracking</h3>
+                <p>Track Gap Analysis status by domain and market; close Jira when done</p>
+              </div>
+              <div class="toolbar">
+                <button id="triggerGapCheck" class="ghost" title="Check comment changes on all tickets">Check Now</button>
+                <label id="gapMonitorToggle" class="toggle-label" title="Auto monitor Jira comment changes when enabled">
+                  <input type="checkbox" id="gapMonitorCheck" /> Auto Monitor
+                </label>
+                <button id="refreshGapTracking" class="ghost">Refresh</button>
+              </div>
+            </div>
+            <div id="gapUpdateBanner" class="gap-update-banner hidden">
+              <span id="gapUpdateBannerText"></span>
+              <button id="gapUpdateViewBtn" class="gap-update-view-btn">View Details</button>
+              <button id="gapUpdateDismiss" class="gap-update-dismiss" title="Dismiss">✕</button>
+            </div>
+            <div id="gapTrackingSummary" class="gap-summary-bar"></div>
+            <div id="gapReminders" class="gap-reminders hidden"></div>
+            <div id="gapTrackingGrid" class="gap-tracking-grid"></div>
+          </div>
+        </section>
+
+        <!-- AI Assistant (bottom-right, all pages) -->
+        <div id="assistantFab" class="assistant-fab" title="AI Assistant">
+          <span class="fab-icon">🤖</span>
+        </div>
+
+        <div id="assistantPanel" class="assistant-panel hidden">
+          <div class="assistant-header">
+            <div class="assistant-title">
+              <span class="fab-icon">🤖</span>
+              <div>
+                <strong>AI Compliance Assistant</strong>
+                <p class="assistant-subtitle">Regulatory lookup · Q&A · Actions</p>
+              </div>
+            </div>
+            <button id="assistantMiniBtn" class="assistant-icon-btn" title="Minimize">—</button>
+          </div>
+
+          <div id="assistantMessages" class="assistant-messages">
+            <div class="chat-welcome">
+              <div class="chat-welcome-icon">🤖</div>
+              <h3>Automotive Compliance AI Assistant</h3>
+              <p>Regulatory search · Email processing · Compliance analysis</p>
+              <div class="quick-questions">
+                <button class="quick-question-btn email-action" data-q="latest emails">Latest Emails</button>
+                <button class="quick-question-btn email-action" data-q="search CEADU emails">Search CEADU Emails</button>
+                <button class="quick-question-btn email-action" data-q="emails needing reply">Emails Needing Reply</button>
+                <button class="quick-question-btn" data-question="Korea's Cyber Security compliance requirements">Korea Compliance</button>
+                <button class="quick-question-btn" data-question="What are India OBD requirements?">India OBD</button>
+                <button class="quick-question-btn" data-question="UN-R156 requirements for OTA software updates">📡 UN-R156 OTA</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="assistant-input-area">
+            <div id="assistantSuggestion" class="assistant-suggestion hidden">
+              <span id="suggestionText"></span>
+              <button id="suggestionUse" class="ghost small">Use</button>
+            </div>
+            <div class="assistant-input-row">
+              <textarea id="assistantInput" placeholder="Ask a question... (Enter to send)" rows="1"></textarea>
+              <button id="assistantSendBtn" class="primary">Send</button>
+            </div>
+            <div class="assistant-toolbar">
+              <span class="assistant-tool-hint">Features: Reg. search · Market compliance · Jira tickets</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="/static/app.js?v=11"></script>
+  </body>
+</html>
