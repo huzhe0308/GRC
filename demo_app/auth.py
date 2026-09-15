@@ -87,18 +87,40 @@ class _TursoConn:
     def close(self) -> None:
         pass
 
+    @staticmethod
+    def _convert_arg(val):
+        if val is None:
+            return {"type": "null"}
+        if isinstance(val, bool):
+            return {"type": "integer", "value": 1 if val else 0}
+        if isinstance(val, int):
+            return {"type": "integer", "value": val}
+        if isinstance(val, float):
+            return {"type": "float", "value": val}
+        return {"type": "text", "value": str(val)}
+
+    @staticmethod
+    def _extract_value(val):
+        if not isinstance(val, dict):
+            return val
+        vtype = val.get("type")
+        if vtype == "null":
+            return None
+        return val.get("value")
+
     def _execute(self, sql: str, params) -> Any:
+        typed_args = [self._convert_arg(p) for p in params]
         resp = self._requests.post(
             f"{self._url}/v3/pipeline",
             headers=self._headers,
-            json={"requests": [{"type": "execute", "stmt": {"sql": sql, "args": params}}]},
+            json={"requests": [{"type": "execute", "stmt": {"sql": sql, "args": typed_args}}]},
             timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
         results = data.get("results", [])
         if not results:
-            return []
+            return _TursoCursor([])
 
         result = results[0]
         if result.get("type") == "error":
@@ -110,14 +132,7 @@ class _TursoConn:
             rows_data = resp_data.get("rows", [])
             rows = []
             for row in rows_data:
-                values = []
-                for val in row.get("value", []):
-                    v = val.get("value")
-                    if isinstance(v, dict):
-                        v = v.get("text") or v.get("integer") or v.get("real") or v.get("blob") or None
-                    elif v is None:
-                        v = val.get("null")
-                    values.append(v)
+                values = [self._extract_value(v) for v in row.get("value", [])]
                 rows.append(_Row(zip(cols, values)))
             return _TursoCursor(rows)
         return _TursoCursor([])
@@ -143,10 +158,6 @@ class _TursoCursor:
         return self._rows[self._idx:]
 
 
-class _LocalConn(sqlite3.Connection):
-    pass
-
-
 def _get_db():
     if TURSO_URL or TURSO_HTTP_URL:
         return _TursoConn()
@@ -162,10 +173,7 @@ def init_db() -> None:
     if _db_initialized:
         return
     conn = _get_db()
-    if isinstance(conn, _TursoConn):
-        conn.executescript(SCHEMA_SQL)
-    else:
-        conn.executescript(SCHEMA_SQL)
+    conn.executescript(SCHEMA_SQL)
     conn.commit()
     conn.close()
     _db_initialized = True
