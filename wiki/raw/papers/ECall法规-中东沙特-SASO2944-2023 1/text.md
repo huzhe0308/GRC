@@ -1,0 +1,887 @@
+<!-- Page 1 -->
+
+ 
+ 
+الهيئة السعودية للمواصفات والمقاييس والجودة   
+Saudi Standards, Metrology and Quality Org (SASO)
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+SASO/DS 2944:2023
+ 
+ 
+ 
+السيارات-( المتطلبات الفنية التصال الطوارئ بالمركباتeCall)
+ 
+Motor vehicle - Technical Requirements for Emergency Calls 
+“eCall”
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ICS:43.020
+ 
+ 
+THIS DOCUMENT IS A DRAFT SAUDI STANDARD CIRCULATED 
+FOR COMMENT. IT IS, THEREFORE SUBJECT TO CHANGE AND 
+MAY NOT BE REFERRED TO AS A SAUDI STANDARD UNTIL 
+APPROVED BY THE BOARD OF DIRECTORS.
+ 
+
+
+<!-- Page 2 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+ 
+ 
+مقدمة
+ 
+قامت الهيئة السعودية للمواصفات والمقاييس والجودة بتحديث المواصفة القياسية السعوديةSASO 2944:2023
+ 
+" السيارات- المتطلبات الفنية التصال الطوارئ بالمركبات (eCall) "بعد استعراض المواصفات القياسية العربية واألجنبية والدوليةوالمؤلفات المرجعية ذات الصلة على أن تلغيالمواصفةSASO 2944:2020
+.وتم اعتماد هذه المواصفة كمواصفة قياسية سعودية إلزامية.
+ 
+  
+ 
+ 
+ 
+The   Saudi   Standards,   Metrology   and   Quality   Organization   (SASO) has updated the 
+Saudi Standard SASO 2944:2023 Motor vehicle - Technical Requirements for “eCall” based on 
+relevant ADMO, International and National foreign Standards and references. The approved 
+Saudi Standard SASO 2944:2023 will replace and supersede the Saudi Standard SASO 
+2944:2020. This Document will apply as Mandatory Saudi Standard. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 3 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+ 
+ 
+ 
+Motor vehicle - Technical Requirements for Emergency Calls 
+“eCall
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Date of Enforcement of this Standard: From 01/01/2027 model year onwards, all vehicles 
+models imported to KSA.
+
+
+<!-- Page 4 -->
+
+1 
+ 
+1 
+Scope ................................................................................................................................ 2 
+2 
+Normative references ........................................................................................................ 2 
+eCall Specifications ................................................................................................................. 2 
+Radio and Network Specifications ............................................................................................ 3 
+UMTS Radio and Network Specifications ................................................................................. 3 
+CEN Specifications .................................................................................................................. 4 
+eCall HLAP standards: ............................................................................................................ 4 
+Electromagnetic Compatibility (EMC) ...................................................................................... 4 
+Electrical safety ....................................................................................................................... 4 
+3 
+Definition ......................................................................................................................... 4 
+3.1 911: ................................................................................................................................... 4 
+3.2 eCall:................................................................................................................................. 4 
+3.3 eCall enabled PSAP: ........................................................................................................... 5 
+3.4 eCall in-vehicle system: ...................................................................................................... 5 
+3.5 Minimum set of data (MSD): .............................................................................................. 5 
+3.6 Public mobile wireless communications network: ................................................................. 5 
+3.7 Public Safety Answering Point (PSAP): ............................................................................... 5 
+3.8 light duty vehicle (LDVs): ................................................................................................... 5 
+3.9 New model (type ) : ............................................................................................................ 5 
+4 
+Characteristics .................................................................................................................. 5 
+5 
+Sampling Method .............................................................................................................. 6 
+6 
+Testing and Inspection ...................................................................................................... 6 
+Annex 1 ................................................................................................................................... 7 
+Annex 2 ................................................................................................................................... 8 
+Annex 3 ................................................................................................................................... 9 
+Annex 4 ................................................................................................................................. 10 
+Annex 5 ................................................................................................................................. 11 
+Annex 6 ................................................................................................................................. 12 
+Annex 7 ................................................................................................................................. 13 
+Annex 8 ................................................................................................................................. 15 
+Annex 9 ................................................................................................................................. 16 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 5 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+2 
+ 
+Motor vehicle - Technical Requirements for 
+Emergency Calls “eCall”1 Scope
+This standard is concerned with the Emergency calls and Connectivity Technical 
+Requirements for new light duty vehicle (LDVs) imported to KSA. 
+ 
+This standard exempts vehicle produced locally or imported to KSA in small series with an 
+aggregated volume of less than 75 vehicles annually to be equipped with an eCall in- vehicle 
+system.2 Normative references
+The following referenced documents are indispensable for the application of this document. 
+For dated references, only the edition cited applies. For the referenced standards, the dated 
+edition cited.
+ 
+For undated references, the latest edition of the referenced document (including any 
+amendments) applies.eCall Specifications3GPP TS 22.101: Service aspects; Service principles.3GPP TS 22.101: Service aspects; Service principles
+3GPP TS 24.008: Mobile radio interface Layer 3 specification; Core network protocols; Stage 3 
+3GPP TS 26.267: eCall data transfer; In-band modem solution; General description 
+3GPP TS 26.268: eCall data transfer; In-band modem solution; ANSI-C reference code 
+3GPP TS 26.269: eCall data transfer; In-band modem solution; Conformance testing 
+3GPP TR 26.969: eCall data transfer; In-band modem solution; Characterization report 
+ETSI TS 103 412 Mobile Standards Group (MSG); Pan-European eCall end to end and in-
+band modem conformance testing;
+ETSI TS 123 167 Universal Mobile Telecommunications System (UMTS); LTE; IP 
+Multimedia Subsystem (IMS) emergency sessions 
+ETSI TS 124 229 Digital cellular telecommunications system (Phase 2+) (GSM); Universal 
+Mobile Telecommunications System (UMTS); LTE; 
+ETSI TS 103 683 Mobile Standards Group (MSG); Testing; Next Generation eCall High 
+Level Application Protocol (HLAP) Interoperability Testing 
+ETSI TS 138 523-1 User Equipment (UE) conformance specification; Part 1: Protocol 
+ETSI TS 134 229-1 Universal Mobile Telecommunications System (UMTS); LTE 
+
+
+<!-- Page 6 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+3 
+ 
+ETSI TS 134 229-5 5G; Internet Protocol (IP)  multimedia call control protocol based on  
+Session Initiation Protocol (SIP)  and Session Description Protocol (SDP) 
+ETSI TS 136 523-1 LTE; Evolved Universal Terrestrial Radio Access (E-UTRA) and 
+Evolved Packet Core (EPC);
+ITU-T P.1140 Speech communication requirements for emergency calls originating from 
+ETSI TS 103 683 Mobile Standards Group (MSG); Testing; Next Generation eCall High 
+Level Application Protocol (HLAP) Interoperability Testing 
+ETSI TS 103 428 Mobile Standards Group (MSG); eCall HLAP Interoperability Testing 
+Radio and Network Specifications
+3GPP TS 44.018: Mobile radio interface layer 3 specification; Radio Resource Control (RRC) 
+3GPP TS 51.010: Mobile Station (MS) conformance specification; Part 1: Conformance 
+specification
+3GPP TS 45.002: Multiplexing and multiple access on the radio path 
+3GPP TS 45.003: Channel coding3GPP TS 45.004: ModulationUMTS Radio and Network Specifications
+3GPP TS 25.101: User Equipment (UE) radio transmission and reception (FDD) 
+3GPP TS 25.104: Base Station (BS) radio transmission and reception (FDD) 
+3GPP TS 25.133: Requirements for support of radio resource management (FDD) 
+3GPP TS 25.201: Physical layer - general description 
+3GPP TS 25.211: Physical channels and mapping of transport channels onto physical channels 
+(FDD)3GPP TS 25.212: Multiplexing and channel coding (FDD)3GPP TS 25.213: Spreading and modulation (FDD)3GPP TS 25.214: Physical layer procedures (FDD)3GPP TS 25.215: Physical layer; Measurements (FDD)
+3GPP TS 25.321: Medium Access Control (MAC) protocol specification 
+3GPP TS 25.322: Radio Link Control (RLC) protocol specification 
+3GPP TS 25.331: Radio Resource Control (RRC); Protocol specification 
+3GPP TS 25.41x: UTRAN Iu interface: General aspects and principles 
+3GPP TS 25.42x: UTRAN Iur interface general aspects and principles 
+
+
+<!-- Page 7 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+4 
+ 
+3GPP TS 25.43x: UTRAN Iub Interface: general aspects and principles 
+3GPP TS 34.108: Common test environments for User Equipment (UE); Conformance testing 
+3GPP TS 34.121: Terminal conformance specification, Radio transmission and reception 
+(FDD)
+ 
+CEN Specifications
+EN 16102 Intelligent transport systems. eCall. Operating requirements for third party support  
+eCall HLAP standards:
+ EN 16072 Intelligent transport systems - ESafety - Pan-European eCall operating 
+requirementsCEN EN 16062 eCall High Level Application Protocols (HLAP)
+EN CEN TS 16454: Intelligent transport systems – eSafety – ECall end to end conformance 
+CEN EN 15722:2020 Intelligent transport systems - eSafety - eCall minimum set of data 
+(MSD)
+EN 17184 Intelligent transport systems - eSafety - eCall High level application protocols 
+(HLAP) using IP Multimedia Subsystem (IMS) over packet switched networks 
+EN CEN TS 17240 Intelligent transport systems - ESafety - ECall end to end conformance 
+testing for IMS packet switched based systems 
+Electromagnetic Compatibility (EMC)EN 301 489-1 (general EMC requirements for radio equipment)Electrical safety
+SASO-IEC-62368-1 (Audio/video, information and communication technology equipment - 
+Part 1: Safety requirements)
+SASO-CITC-RI056 (Specification for UMTS (3G) and LTE handsets and Ancillary 
+equipment)
+ SASO 2864 (Saudi Arabia corporate average fuel economy (SAUDI CAFÉ) standard for 
+incoming light duty vehicles).3 Definition
+3.1 911: Unified number in Kingdom of Saudi Arabia for Emergency call 
+3.2 eCall: emergency call that is made either automatically via activation of in-vehicle sensors 
+or manually by the vehicle occupants; when activated , it provides notification and relevant 
+location information to the most appropriate Public Safety Answering Point, by means of ' 
+mobile wireless communications network ', and carries a defined standardized Minimum Set 
+of Data, notifying that there has been an incident that requires response from the emergency 
+services and establishes an audio channel between the occupants of the vehicle and the most 
+appropriate Public Safety Answering Point   
+
+
+<!-- Page 8 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+5 
+ 
+3.3 eCall enabled PSAP: the most appropriate PSAP in a defined area within KSA, 
+determined beforehand by the national authorities to first receive and handle eCalls. 
+3.4 eCall in-vehicle system: in-vehicle equipment initiating eCall via public mobile wireless 
+communications networks activated either automaticity or manually, transferring the 
+minimum set of data and establishing an audio channel between the passenger of the vehicle 
+and an eCall enabled PSAP.
+3.5 Minimum set of data (MSD): information defined by the standard ‘Intelligent transport 
+systems — eSafety — eCall minimum set of data (MSD)’ (EN 15722 ) which is sent to the 
+eCall enabled PSAP by the eCall in-vehicle system. 
+3.6 Public mobile wireless communications network: mobile wireless communications 
+network with access to a public telecommunications network 
+3.7 Public Safety Answering Point (PSAP): physical location where emergency calls are 
+first received under the responsibility of a public authority or a private organization 
+recognized by the national government.
+3.8 light duty vehicle (LDVs): Any vehicles with a maximum gross weight of 3,500 kg and 
+which are primarily used to transport passengers or goods. 
+3.9 New model (type ) : the motor vehicle is considered as new model if one of the following 
+changes done :-Vehicle manufacturer-Vehicle category-
+Vehicle body structure style-Vehicle engine characteristics-Vehicle source of energyNote:
+Annex No. (1) Refers to the corresponding meaning of the abbreviations in this standard. 
+ 
+4 Characteristics
+Vehicles with a maximum gross weight of 3,500 kg or less, which are primarily used to 
+transport passengers (M1 category) or goods (N1 category), shall be equipped with an eCall 
+in- vehicle system.
+ 
+ Vehicles with a maximum gross weight of 3,500 kg or less, which are primarily used to 
+transport passengers or goods, shall be equipped with an eCall in- vehicle system.  
+The eCall in-vehicle system shall in case of an incident establish an eCall as an emergency 
+call via the available public wireless communications networks, shall comply with following: 
+a. The devices for wireless communications shall be designed in such a way that after a 
+severe incident, they remain operational, automatically trigger the incident and initiate 
+an eCall.
+
+
+<!-- Page 9 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+6 
+ 
+b. The eCall in-vehicle equipment shall be able to transmit the Minimum Set of Data 
+(MSD). This requires generation of dynamic information like the geo-localization or 
+time and static data as the VIN or vehicle propulsion type. 
+c. Mobile connectivity data shall be considered as public services information for 
+emergency calls (eCall) but could made available for private organizations determined 
+by responsible KSA governmental authorities for development of innovative transport 
+services like traffic management or breakdown services. 
+d. All network-based equipment (including eCall communication module) must support 
+using IP multimedia subsystem (IMS) over packet switched networks for type 
+approval. All network-based equipment (including eCall communication module) must 
+support 4G / Next generation eCall as a requirement for type approval.  
+e. All stakeholders involved shall comply with all national regulations related to the 
+protection of data and the privacy of the citizens. 
+f. The information in the wireless connectivity system given to the passengers via the 
+HMI shall be available in Arabic and English, as a minimum 
+g. The third-party service will be allowed under KSA public authorities approval in 
+condition to operate the eCall service in accordance with EN 16102.   
+h. eCall services shall be available to the customer, even if the customer does not opted 
+to take the bundled TPS services offered by the vehicle dealer within the KSA. 
+i. All details which are necessary to ensure proper installation and maintenance shall be 
+given in the manufacturer's instructions with all operations of the eCall device as well 
+as characteristics of the communication with the public telecommunication networks.  
+5 Sampling Method
+Manufacturers shall ensure that these vehicles and the installed eCall in-vehicle systems are 
+conforming to the eCall requirements as specified in the above-referred standards. 
+Manufacturers shall demonstrate that in the event of a severe accident an eCall is triggered 
+automatically and manually in different events to the emergency number 911. 
+Saudi public authorities has the right to ask the manufacturers to send a sample for testing if 
+needed.6 Testing and Inspection
+Inspection and testing of samples are conducted in accordance with the conformance testing 
+reference in Annex 2-9
+Inspection and testing of samples are made according to conformance testing reference Annex 
+2-3, 4.5, 6.7and Annex 8.
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 10 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+7 
+ 
+Annex 1Abbreviations
+ 
+Signification3GPP3rd Generation Partnership ProjectAmerican National Standards Institute
+Comité Européen de Normalisation (French: European Committee for 
+Standardization)E-UTRAEvolved Universal Terrestrial Radio AccessE-UTRANEvolved Universal Terrestrial Radio Access NetworkEuropean Commission
+Emergency CallEuropean NormEvolved Packet SystemFrequency Division DuplexGulf Countries CouncilGeneral Packet Radio Service
+Global System for Mobile communicationsGCC Standardization OrganizationHigh Level Application ProtocolsInternet Engineering Task ForceIP Multimedia Subsystem (IMS) emergency sessionsInternet Protocol
+Long Term EvolutionMedium Access ControlMobile StationMinimum Set of DataNon-Access-StratumPan European eCall Operating Requirements
+Radio Link ControlRadio Resource ControlSession Description ProtocolSession Initiation ProtocolTechnical ReportTechnical Specification
+User EquipmentUniversal Terrestrial Radio Access NetworkWide Area Network
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+|  |  |  | Signification |
+| --- | --- | --- | --- |
+|  | 3GPP |  | 3rd Generation Partnership Project |
+|  |  |  | American National Standards Institute |
+|  |  |  | Comité Européen de Normalisation (French: European Committee for |
+|  |  |  | Standardization) |
+|  | E-UTRA |  | Evolved Universal Terrestrial Radio Access |
+|  | E-UTRAN |  | Evolved Universal Terrestrial Radio Access Network |
+|  |  |  | European Commission |
+|  |  |  | Emergency Call |
+|  |  |  | European Norm |
+|  |  |  | Evolved Packet System |
+|  |  |  | Frequency Division Duplex |
+|  |  |  | Gulf Countries Council |
+|  |  |  | General Packet Radio Service |
+|  |  |  | Global System for Mobile communications |
+|  |  |  | GCC Standardization Organization |
+|  |  |  | High Level Application Protocols |
+|  |  |  | Internet Engineering Task Force |
+|  |  |  | IP Multimedia Subsystem (IMS) emergency sessions |
+|  |  |  | Internet Protocol |
+|  |  |  | Long Term Evolution |
+|  |  |  | Medium Access Control |
+|  |  |  | Mobile Station |
+|  |  |  | Minimum Set of Data |
+|  |  |  | Non-Access-Stratum |
+|  |  |  | Pan European eCall Operating Requirements |
+|  |  |  | Radio Link Control |
+|  |  |  | Radio Resource Control |
+|  |  |  | Session Description Protocol |
+|  |  |  | Session Initiation Protocol |
+|  |  |  | Technical Report |
+|  |  |  | Technical Specification |
+|  |  |  | User Equipment |
+|  |  |  | Universal Terrestrial Radio Access Network |
+|  |  |  | Wide Area Network |
+
+
+
+<!-- Page 11 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+8 
+ 
+Annex 2
+Resistance of eCall systems to severe crashes (high-severity deceleration test) 
+ 
+Performance requirements
+The eCall in-vehicle systems, components or separate technical units shall demonstrate post- 
+deceleration/acceleration event following functionality. 
+The eCall system shall be able to successfully transmit an MSD to a PSAP test point. 
+The eCall system shall be able to determine an up-to-date timestamp for an eCall incident. 
+The eCall system shall be able to determine accurately the up-to-date vehicle location. 
+The eCall system shall be able to connect to and transmit data via the mobile network. 
+ 
+Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 12 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+9 
+ 
+Annex 3Full-scale impact test assessments
+ 
+The full-scale impact assessments of vehicles with eCall in-vehicle systems installed, carried 
+out in accordance with point 2, shall be considered satisfactory if the following requirements 
+are demonstrated post-impact.
+Automatic triggering: The eCall system shall automatically initiate an eCall after an impact in 
+accordance with UN Regulation No. 94 (Annex 3) or UN Regulation No. 95 (Annex 4), or 
+equivalent SASO GSO standards.
+Manual triggering: The eCall system shall allow manual triggering of an eCall by vehicle 
+occupants.
+Call status indication: The eCall system shall inform the occupants about the current status of 
+the eCall (status indicator) using a visual and/or audible signal optional in English and/or 
+Arabic language.
+MSD emission and encoding: The eCall system shall be able to transmit successfully an MSD 
+to a PSAP test point via the mobile network. 
+Vehicle-specific data determination: The eCall system shall be able to populate accurately the 
+mandatory vehicle-specific data fields of the MSD. 
+Position determination: The eCall system shall be able to determine accurately the up-to-date 
+vehicle location.Test procedure
+According to test procedure specified in EU Commission delegated regulation (EU) 2017/79  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 13 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+10 
+ 
+Annex 4Crash resistance of audio equipment
+ 
+Requirements
+The assessment of the crash resistance of the eCall audio equipment of vehicles with eCall in-
+vehicle systems installed, carried out in accordance with Annex 3 Paragraph 2, shall be 
+considered satisfactory if the following requirements are demonstrated post-impact. 
+Reconnection of audio equipment: The eCall system shall reconnect the loudspeaker(s) and 
+microphone(s) after being disconnected during an eCall for MSD transmission. 
+Voice communication: The eCall system shall allow hands-free voice communication (send 
+and receive direction) of sufficient intelligibility between vehicle occupants and an operator. 
+Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+Test sentences
+The following test sentence pairs shall be used for the exchange of test messages in the send 
+and receive directions. Test sentence pairs in English is provided below. 
+Note: The Arabic test will be updated to the document whenever it is available. 
+(a)These days a chicken leg is a rare dish.(b)
+Rice is often served in round bowls. A large size in stockings is hard to sell. 
+(c)
+The juice of lemons makes fine punch. Four hours of steady work faced us. 
+(d)
+The birch canoe slid on smooth planks. Glue the sheet to the dark blue background. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 14 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+11 
+ 
+Annex 5Automatic triggering mechanism
+ 
+The following requirements apply to vehicles with eCall in-vehicle systems installed. 
+Documentation requirements:
+The manufacturer shall provide a statement, which affirms that the strategy chosen to trigger 
+an automatic eCall ensures triggering also in accident configurations dissimilar from and/or of 
+a lower severity than the collisions simulated in the applicable full-scale crash tests in UN 
+Regulation No. 94 and UN Regulation No. 95. 
+The manufacturer shall choose the collision typology and severity and will demonstrate that it 
+is significantly different from the full-scale crash tests. The manufacturer shall provide an 
+explanation and technical documentation which shows, in overall terms, how this is achieved. 
+Documentation that shows, to the satisfaction of the KSA/ GCC, that the activation of 
+supplemental restraint systems, at the severity level chosen at the discretion of the 
+manufacturer, also induces an automatic eCall shall be considered satisfactory. 
+Airbag control unit specification drawings, specification data notes, sensitivity drawings, 
+relevant circuit diagrams or similar documents considered equivalent by the KSA / GCC 
+would be suitable means to demonstrate this connection. 
+The extended documentation package shall remain strictly confidential. It may be kept by the 
+KSA/ GCC, or, at the discretion of the KSA/ GCC, may be retained by the manufacturer. In 
+case the manufacturer retains the documentation package, that package shall be identified and 
+dated by the approval authority once reviewed and approved. It shall be made available for 
+inspection by the KSA/ GCC at the time of approval or at any time during the validity of the 
+approval.Test procedure
+According to Test Procedure The same documentation requirements apply as specified in EU 
+Commission delegated regulation (EU) 2017/79 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 15 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+12 
+ 
+Annex 6
+Co-existence of third party services (TPS) with the 911-based eCall in-vehicle systems 
+Performance requirements
+The 911-based system shall be deactivated as long as the TPS system is active and does 
+function.
+The 911-based system shall be triggered automatically in the event that the TPS system is 
+triggered but does not function.
+ 
+Documentation requirements
+The manufacturer shall provide the technical service with an explanation of the design 
+provisions built into the TPS system to ensure automatic triggering of the 911-based system 
+(‘fallback procedure’) in the event that the TPS system does not function. This documentation 
+shall describe the principles of the changeover mechanism. 
+The documentation shall be supported by an analysis which shows, in overall terms, any 
+hardware or software failure conditions that would result in an inability of the TPS system to 
+perform a successful call and how the TPS system will behave on the occurrence of these. 
+This may be based on a Failure Mode and Effect Analysis (FMEA), a Fault Tree Analysis 
+(FTA) or any
+Appropriate similar process as agreed between the technical service and the manufacturer. 
+The chosen analytical approach(es) shall be established and maintained by the manufacturer 
+and shall be made open for inspection by the technical service at the time of the type-
+approval.Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 16 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+13 
+ 
+Annex 7
+Technical requirements for compatibility of eCall in-vehicle systems with the positioning 
+services provided by the Galileo and the GLONASS systems 
+ 
+Compatibility requirements
+The ’Galileo system compatibility’ shall be: the reception and processing of the signals from 
+the Open Service of Galileo, using it in the computation of the final position. 
+The ’ GLONASS system compatibility’ shall be: the reception of the corrections from the 
+Open Service of GLONASS and its application to the GNSS signals, in particular GPS. 
+The compatibility of the eCall in-vehicle systems with the positioning services provided by 
+the Galileo and the GLONASS systems shall be compliant with respect to the positioning 
+capabilities below and demonstrated by performing the test methods in section 2. 
+The testing procedures can be performed either on the eCall unit including post processing 
+ability or directly on the GNSS chipset receiver being a part of the eCall. 
+Performance requirements
+The GNSS receiver shall be able to output the navigation solution in a NMEA-0183 protocol 
+format (RMC, GGA, VTG, GSA and GSV message). The eCall setup for NMEA-0183 
+messages output to external devices shall be described in the operation manual. 
+The GNSS receiver being a part of the eCall shall be capable of receiving and processing 
+combined GNSS signals in L1/E1 band from at least three global navigation satellite systems, 
+including Galileo, GLONASS and GPS; and SBAS. 
+The GNSS receiver being a part of the eCall shall be capable of receiving and processing 
+individual GNSS signals in L1/E1 band from at least two global navigation satellite systems, 
+including Galileo and GPS.
+The GNSS receiver being a part of the eCall shall be capable of receiving and processing 
+combined GNSS signals in L1/E1 band from at least two global navigation satellite systems, 
+including Galileo and GPS; and SBAS.
+The GNSS receiver being a part of the eCall shall be able to provide positioning information 
+in WGS-84 coordinate system.Horizontal position error shall not exceed:
+under open sky conditions: 15 meters at confidence level 0.95 with Position Dilution of 
+Precision (PDOP) in the range from 2.0 to 2.5; 
+in urban canyon conditions: 40 meters at confidence level 0.95 with Position Dilution of 
+Precision (PDOP) in the range from 3.5 to 4.0. 
+The specified requirements for accuracy shall be provided: 
+at speed range from 0 to [140] km/h;
+linear acceleration range from 0 to [2] G. 1.2.7. Cold start time to first fix shall not exceed:  
+
+
+<!-- Page 17 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+14 
+ 
+60 seconds for signal level down to minus 130 dBm; 
+300 seconds for signal level down to minus 140 dBm. 
+GNSS signal re-acquisition time after block out of 60 seconds at signal level down to minus 
+130 dBm shall not exceed 20 seconds after recovery of the navigation satellite visibility. 
+Sensitivity at receiver input shall be:
+GNSS signals detection (cold start) do not exceed 3600 seconds at signal level on the antenna 
+input of the eCall of minus 144 dBm;
+GNSS signals tracking and navigation solution calculation is available for at least 600 seconds 
+at signal level on the antenna input of the eCall of minus 155 dBm; 
+Re-acquisition of GNSS signals and calculation of the navigation solution is possible and does 
+not exceed 60 seconds at signal level on the antenna input of the eCall of minus 150 dBm. 
+ 
+Test procedure
+According to Test Procedure specified in UN-R 144(Annex 10) EU Commission delegated 
+regulation (EU) 2017/79
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+<!-- Page 18 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+15 
+ 
+Annex 8In-vehicle system self-test Requirements
+The following requirements apply to a vehicle with eCall in-vehicle system installed. 
+Performance requirements
+The eCall system shall carry out a self-test at each system power-up. The self-test function 
+shall monitor at least the technical items listed in Table 1. A warning in form of either a visual 
+tell-tale or a warning message in a common space shall be provided in case a failure is 
+detected by the self-test function. It shall remain activated while the failure is present. It may 
+be cancelled temporarily, but shall be repeated whenever the ignition or vehicle master control 
+switch is being activated.Requirements for the periodic technical inspection
+It shall be possible to verify the integrity of the eCall in-vehicle system via a test call to a 
+dedicated test PSAP. According to this it shall at least be possible to test the accuracy of the 
+Minimum Set of Data, the connectivity to the Public Land Mobile Network(s) and the 
+functionality of the voice communication by audible means. All necessary information for the 
+proper conduct of the test shall be made freely available. 
+Documentation requirements
+ The manufacturer shall provide the type-approval authorities with documentation in 
+accordance with Table 1, which shall contain for each item the technical principle applied to 
+monitor the item.Table 1: Template of information for self-test functionTechnical principle applied formonitoringeCall ECU is in working order (e.g. no internal hardwarefailure, processor/memory is ready,
+logic function in expected default state) 
+ 
+External mobile network antenna is connected 
+ 
+Mobile network communication device is in 
+working order (no internal hardware failure, responsive) 
+ 
+External GNSS antenna is connected
+ 
+GNSS receiver is in working order
+(no internal hardware failure, output within expected range) 
+ 
+Crash control unit is connected in working order (e.g. no 
+internal hardware failure, processor is ready, logic function 
+in expected default state)
+ 
+No communication failures (bus connection 
+failures) of relevant components
+ 
+SIM is present (this item only applies if a 
+removable SIM is used)
+ 
+Power source is connected
+ 
+Power source has sufficient charge ( threshold at the 
+discretion of the manufacturer)
+ 
+ 
+
+
+| switch is being activated. Requirements for the periodic technical inspection It shall be possible to verify the integrity of the eCall in-vehicle system via a test call to a dedicated test PSAP. According to this it shall at least be possible to test the accuracy of the Minimum Set of Data, the connectivity to the Public Land Mobile Network(s) and the functionality of the voice communication by audible means. All necessary information for the proper conduct of the test shall be made freely available. Documentation requirements The manufacturer shall provide the type-approval authorities with documentation in accordance with Table 1, which shall contain for each item the technical principle applied to monitor the item. Table 1: Template of information for self-test function |  |  |  |  |  |
+| --- | --- | --- | --- | --- | --- |
+|  |  |  |  | Technical principle applied for |  |
+|  |  |  |  | monitoring |  |
+|  | eCall ECU is in working order (e.g. no internal hardware |  |  |  |  |
+|  | failure, processor/memory is ready, |  |  |  |  |
+|  | logic function in expected default state) |  |  |  |  |
+|  | External mobile network antenna is connected |  |  |  |  |
+|  | Mobile network communication device is in |  |  |  |  |
+|  | working order (no internal hardware failure, responsive) |  |  |  |  |
+|  | External GNSS antenna is connected |  |  |  |  |
+|  | GNSS receiver is in working order |  |  |  |  |
+|  | (no internal hardware failure, output within expected range) |  |  |  |  |
+|  | Crash control unit is connected in working order (e.g. no |  |  |  |  |
+|  | internal hardware failure, processor is ready, logic function |  |  |  |  |
+|  | in expected default state) |  |  |  |  |
+|  | No communication failures (bus connection |  |  |  |  |
+|  | failures) of relevant components |  |  |  |  |
+|  | SIM is present (this item only applies if a |  |  |  |  |
+|  | removable SIM is used) |  |  |  |  |
+|  | Power source is connected |  |  |  |  |
+|  | Power source has sufficient charge ( threshold at the |  |  |  |  |
+|  | discretion of the manufacturer) |  |  |  |  |
+
+
+
+<!-- Page 19 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+16 
+ 
+Annex 9
+Technical requirements and test procedures related to privacy and data protection Part 
+I: Procedure for verifying the lack of traceability of eCall in-vehicle systems 
+This is to ensure that the 911 based eCall in-vehicle system is not traceable and is not subject 
+to any constant tracking in its normal operational status. 
+Requirements
+The 911 based eCall in-vehicle system is not available for communication with the PSAP if 
+the PSAP test point initiates the communication. 
+Failure to establish the connection can be attributed to the 911 based eCall in-vehicle system 
+not being registered on the network.Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+ 
+Part II: Procedure for verifying the length of time an eCall log file is stored by the eCall 
+in-vehicle system
+This is to demonstrate that the personal data shall not be retained by the eCall in-vehicle 
+system longer than necessary for the purpose of handling the emergency situation. Those data 
+shall be fully deleted as soon as they are no longer necessary for that purpose. This is to be 
+judged by proving that eCall log files are not kept beyond 13 hours from the point of initiating 
+an eCall.Requirements
+When interrogated, the eCall in-vehicle system shall not maintain any record of an eCall in its 
+memory beyond 13 hours from the point of initiating an eCall. 
+Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+ 
+Test conditions
+It shall be facilitated to have access to the part of the system where the eCall log files are 
+stored in the IVS during evaluation. The following test shall be performed on a representative 
+arrangement of parts.
+ 
+Test Method
+The tests as described in paragraph 2 of Annex I shall be carried out. They require that a test 
+call is placed in order for functionality checks to be made. Immediately after a test call has 
+been placed and 13 hours later access shall be provided to where the eCall log files are stored 
+
+
+<!-- Page 20 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+17 
+ 
+in the IVS. This will involve the potential to download any log files from the IVS so that they 
+can tester view them.Assessment
+The requirement is determined to have been passed if immediately log file information is 
+presented which after 13 hours will no longer be present in the eCall in-vehicle system 
+memory.The presence of a log file pertaining to an eCall that has occurred more than 13 hours 
+ago constitutes a failure. Same applies if log is empty immediately after initiation of an eCall. 
+ 
+Part III: Procedure for verifying the automatic and continuous removal of data in the 
+internal memory of eCall in-vehicle systems 
+This is to demonstrate that in the internal memory of the 911 based eCall in-vehicle system, 
+maximum of last three locations of the vehicle shall be retained. 
+Requirements
+When interrogated, the eCall in-vehicle system shall not maintain more than three recent 
+locations of the vehicle.Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+ 
+Test conditions
+During the evaluation access to the part of the system shall be facilitated where the vehicle 
+location data are stored in the IVS internal memory. 
+The following test shall be performed on a representative arrangement of parts. 
+Test Method
+Access shall be facilitated to where the vehicle location data are stored in the IVS internal 
+memory. This will involve the potential to download from the IVS any stored locations so that 
+they can be viewed by the tester.Assessment
+The requirement is determined to have been passed if maximum of last three locations are 
+present in the eCall in-vehicle system memory. The presence of more than three locations 
+constitutes a failure.
+ 
+ 
+ 
+ 
+
+
+<!-- Page 21 -->
+
+SASO STANDARD                                                            SASO/ DS 2944:2023  
+ 
+18 
+ 
+PART IV Procedure for verifying the non- exchange of personal data between an eCall 
+in-vehicle system or STU and third party services systems 
+Requirements
+The following requirements apply to eCall in-vehicle systems or STUs that shall be used in 
+conjunction with a TPS eCall in-vehicle system functionality. 
+Performance requirements
+There is no exchange of personal data between the 911-based eCall in-vehicle system or STU 
+and any additional system functionality providing TPS eCall or an added-value service. 
+Following an eCall made via the 911-based eCall in-vehicle system or STU, no log of this 
+eCall shall be recorded in the memory of the TPS eCall or added-value service system. 
+Test procedure
+According to Test Procedure specified in EU Commission delegated regulation (EU) 2017/79 
+          
+ 
+
+
