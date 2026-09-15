@@ -1,6 +1,4 @@
 {
-  "outputDirectory": "demo_app/static",
-  "rewrites": [
-    { "source": "/static/(.*)", "destination": "/$1" }
-  ]
+  "buildCommand": "mkdir -p public/static && cp demo_app/static/index.html public/ && cp demo_app/static/app.js demo_app/static/styles.css public/static/",
+  "outputDirectory": "public"
 }
