@@ -1,4 +1,11 @@
-"""User authentication system: register, login, session management."""
+"""User authentication system: register, login, session management.
+
+Supports both local SQLite and Turso (HTTP API) via environment variables.
+Set TURSO_URL and TURSO_TOKEN to use Turso; otherwise falls back to local SQLite.
+
+Turso URL format: libsql://<db-name>-<org>.turso.io
+Turso token: from turso platform tokens create
+"""
 from __future__ import annotations
 
 import hashlib
@@ -8,50 +15,160 @@ import secrets
 import sqlite3
 import time
 from pathlib import Path
+from typing import Any
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = APP_ROOT / "runtime" / "users.sqlite"
 
 SESSION_TTL = 86400 * 7
 
+TURSO_URL = os.environ.get("TURSO_URL", "")
+TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
+TURSO_HTTP_URL = os.environ.get("TURSO_HTTP_URL", "")
 
-def _get_db() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+_db_initialized = False
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    salt        TEXT NOT NULL,
+    created_at  REAL NOT NULL,
+    api_key     TEXT NOT NULL DEFAULT '',
+    llm_base_url TEXT NOT NULL DEFAULT '',
+    llm_model    TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token       TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    username    TEXT NOT NULL,
+    created_at  REAL NOT NULL,
+    expires_at  REAL NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id     INTEGER PRIMARY KEY,
+    settings_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+"""
+
+
+class _Row(dict):
+    """Dict that supports attribute access, mimicking sqlite3.Row."""
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(key)
+
+
+class _TursoConn:
+    """Turso HTTP API connection wrapper that mimics sqlite3.Connection."""
+    def __init__(self):
+        import requests
+        self._requests = requests
+        self._url = TURSO_HTTP_URL or TURSO_URL.replace("libsql://", "https://")
+        self._headers = {"Authorization": f"Bearer {TURSO_TOKEN}", "Content-Type": "application/json"}
+
+    def executescript(self, script: str) -> None:
+        statements = [s.strip() for s in script.split(";") if s.strip()]
+        for stmt in statements:
+            self._execute(stmt, [])
+
+    def execute(self, sql: str, params=None) -> Any:
+        return self._execute(sql, params or [])
+
+    def commit(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def _execute(self, sql: str, params) -> Any:
+        resp = self._requests.post(
+            f"{self._url}/v3/pipeline",
+            headers=self._headers,
+            json={"requests": [{"type": "execute", "stmt": {"sql": sql, "args": params}}]},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("results", [])
+        if not results:
+            return []
+
+        result = results[0]
+        if result.get("type") == "error":
+            raise Exception(result.get("error", {}).get("message", "Turso error"))
+
+        resp_data = result.get("response", {})
+        if resp_data.get("type") == "execute":
+            cols = [c["name"] for c in resp_data.get("cols", [])]
+            rows_data = resp_data.get("rows", [])
+            rows = []
+            for row in rows_data:
+                values = []
+                for val in row.get("value", []):
+                    v = val.get("value")
+                    if isinstance(v, dict):
+                        v = v.get("text") or v.get("integer") or v.get("real") or v.get("blob") or None
+                    elif v is None:
+                        v = val.get("null")
+                    values.append(v)
+                rows.append(_Row(zip(cols, values)))
+            return _TursoCursor(rows)
+        return _TursoCursor([])
+
+
+class _TursoCursor:
+    """Cursor that returns rows and supports fetchone/fetchall."""
+    def __init__(self, rows):
+        self._rows = rows
+        self._idx = 0
+
+    def __iter__(self):
+        return iter(self._rows)
+
+    def fetchone(self):
+        if self._idx < len(self._rows):
+            row = self._rows[self._idx]
+            self._idx += 1
+            return row
+        return None
+
+    def fetchall(self):
+        return self._rows[self._idx:]
+
+
+class _LocalConn(sqlite3.Connection):
+    pass
+
+
+def _get_db():
+    if TURSO_URL or TURSO_HTTP_URL:
+        return _TursoConn()
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        return conn
 
 
 def init_db() -> None:
+    global _db_initialized
+    if _db_initialized:
+        return
     conn = _get_db()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS users (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            username    TEXT UNIQUE NOT NULL,
-            display_name TEXT NOT NULL DEFAULT '',
-            password_hash TEXT NOT NULL,
-            salt        TEXT NOT NULL,
-            created_at  REAL NOT NULL,
-            api_key     TEXT NOT NULL DEFAULT '',
-            llm_base_url TEXT NOT NULL DEFAULT '',
-            llm_model    TEXT NOT NULL DEFAULT ''
-        );
-        CREATE TABLE IF NOT EXISTS sessions (
-            token       TEXT PRIMARY KEY,
-            user_id     INTEGER NOT NULL,
-            username    TEXT NOT NULL,
-            created_at  REAL NOT NULL,
-            expires_at  REAL NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-        CREATE TABLE IF NOT EXISTS user_settings (
-            user_id     INTEGER PRIMARY KEY,
-            settings_json TEXT NOT NULL DEFAULT '{}',
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-    """)
+    if isinstance(conn, _TursoConn):
+        conn.executescript(SCHEMA_SQL)
+    else:
+        conn.executescript(SCHEMA_SQL)
     conn.commit()
     conn.close()
+    _db_initialized = True
 
 
 def _hash_password(password: str, salt: str) -> str:
@@ -105,7 +222,7 @@ def login_user(username: str, password: str) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def _create_session(conn: sqlite3.Connection, user_id: int, username: str) -> str:
+def _create_session(conn, user_id: int, username: str) -> str:
     now = time.time()
     token = secrets.token_urlsafe(32)
     conn.execute(
