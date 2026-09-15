@@ -430,11 +430,16 @@ def main():
             print(f"[Bridge] Auto-discovery failed: {e}", flush=True)
 
     if not server_url:
-        # Fallback: derive from API URL
+        # Fallback: derive WS URL from API URL
         api_url = args.api or os.environ.get("GRC_API_URL", "http://localhost:7860")
         parsed = urllib.parse.urlparse(api_url)
-        ws_port = int(parsed.port or 7860) + 1
-        server_url = f"ws://{parsed.hostname or 'localhost'}:{ws_port}/ws"
+        if parsed.scheme == "https":
+            server_url = f"wss://{parsed.hostname}/ws"
+        elif parsed.scheme == "http":
+            ws_port = int(parsed.port or 7860) + 1
+            server_url = f"ws://{parsed.hostname or 'localhost'}:{ws_port}/ws"
+        else:
+            server_url = f"ws://{parsed.hostname or 'localhost'}:7861/ws"
         print(f"[Bridge] Fallback WS URL: {server_url}", flush=True)
 
     print(f"[Bridge] Server: {server_url}", flush=True)

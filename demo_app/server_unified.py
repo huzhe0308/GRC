@@ -123,7 +123,8 @@ async def http_handler(request: web.Request) -> web.Response:
             return web.Response(body=target.read_bytes(), content_type=ct)
         return web.json_response({"error": "Not found"}, status=404)
     
-    # API routes - import functions from app
+    # API routes
+    try:
         from app import (
             get_all_contacts, get_contacts_by_topic, 
             gap_tracking_status, wiki_search, wiki_search_semantic,
@@ -133,8 +134,7 @@ async def http_handler(request: web.Request) -> web.Response:
             get_export_markets_data, get_assessments_sent,
             wiki_files, wiki_counts, read_text, safe_rel_path, WIKI_DIR,
         )
-    
-    try:
+        
         # GET routes
         if method == "GET":
             if path == "/api/status":
