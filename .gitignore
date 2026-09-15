@@ -16,3 +16,5 @@ build/
 dist/
 *.spec
 GRCBridgeAgent.exe
+# But allow the downloads directory
+!demo_app/static/downloads/
