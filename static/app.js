@@ -528,9 +528,46 @@ async function loadEmails() {
             emailBodyEl.textContent = state.selectedEmail.body || "No body.";
             emailBodyEl.classList.remove("empty");
           }
-        });
-      });
+    });
+  });
+}
+
+// Settings page
+async function loadSettings() {
+  try {
+    const data = await api("/api/settings");
+    if (data.llm) {
+      document.getElementById("llmApiKey").value = data.llm.api_key || "";
+      document.getElementById("llmBaseUrl").value = data.llm.base_url || "";
+      document.getElementById("llmModel").value = data.llm.model || "";
     }
+  } catch (e) {}
+}
+
+document.getElementById("saveLlmConfig")?.addEventListener("click", async () => {
+  const body = {
+    api_key: document.getElementById("llmApiKey").value,
+    base_url: document.getElementById("llmBaseUrl").value,
+    model: document.getElementById("llmModel").value,
+  };
+  try {
+    await fetch("/api/settings/llm", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    showToast("LLM configuration saved");
+  } catch (e) {
+    showToast("Failed to save: " + e.message);
+  }
+});
+
+// Load settings when switching to settings view
+const origSwitchView = switchView;
+switchView = function(view) {
+  origSwitchView(view);
+  if (view === "settings") loadSettings();
+};
     if (state.emails.length && !state.selectedEmail) {
       const first = document.querySelector("[data-email-index]");
       if (first) first.click();

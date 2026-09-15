@@ -12,3 +12,7 @@ _archive_llm_wiki/
 runtime/
 debug/
 work/
+build/
+dist/
+*.spec
+GRCBridgeAgent.exe

@@ -52,6 +52,11 @@ async def http_handler(request: web.Request) -> web.Response:
     """Handle HTTP requests by routing to the app's functions."""
     path = request.path
     method = request.method
+    
+    # Skip WebSocket path - handled by websocket_handler
+    if path == "/ws":
+        return web.json_response({"error": "WebSocket endpoint - use ws:// protocol"}, status=426)
+    
     qs = {k: [v] for k, v in request.query.items()}
     
     # Auth
@@ -90,6 +95,15 @@ async def http_handler(request: web.Request) -> web.Response:
         if target.exists():
             return web.Response(body=target.read_bytes(), content_type="text/html", charset="utf-8")
         return web.json_response({"error": "Not found"}, status=404)
+
+    # Bridge Agent download
+    if path == "/download/bridge":
+        exe_path = APP_ROOT / "dist" / "GRCBridgeAgent.exe"
+        if exe_path.exists():
+            return web.FileResponse(str(exe_path), headers={
+                "Content-Disposition": "attachment; filename=GRCBridgeAgent.exe",
+            })
+        return web.json_response({"error": "Bridge Agent exe not built on this server"}, status=404)
     
     if path.startswith("/static/") or path.endswith((".css", ".js", ".png", ".svg", ".ico")):
         rel = path.lstrip("/")
@@ -270,35 +284,39 @@ async def http_handler(request: web.Request) -> web.Response:
 async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     """Handle WebSocket connections from bridge agents."""
     ws = web.WebSocketResponse(ping_interval=30, ping_timeout=10)
-    await ws.prepare(request)
-    
-    username = None
-    
-    # Extract token from query string
-    token = request.query.get("token", "")
-    if not token:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-    
-    user = verify_token(token)
-    if not user:
-        await ws.send_json({"type": "error", "message": "Authentication failed"})
-        await ws.close(code=4001)
-        return ws
-    
-    username = user["username"]
-    print(f"[WS] Bridge connected: {username}", flush=True)
-    
-    register_bridge(username, ws)
-    
-    await ws.send_json({
-        "type": "welcome",
-        "message": f"Bridge connected as {username}",
-        "timestamp": time.time(),
-    })
-    
     try:
+        await ws.prepare(request)
+    except Exception as e:
+        print(f"[WS] Failed to prepare: {e}", flush=True)
+        return ws
+
+    username = None
+
+    try:
+        # Extract token from query string
+        token = request.query.get("token", "")
+        if not token:
+            auth = request.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                token = auth[7:]
+
+        user = verify_token(token)
+        if not user:
+            await ws.send_json({"type": "error", "message": "Authentication failed"})
+            await ws.close(code=4001)
+            return ws
+
+        username = user["username"]
+        print(f"[WS] Bridge connected: {username}", flush=True)
+
+        register_bridge(username, ws)
+
+        await ws.send_json({
+            "type": "welcome",
+            "message": f"Bridge connected as {username}",
+            "timestamp": time.time(),
+        })
+
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
                 try:
@@ -314,10 +332,11 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
             elif msg.type == WSMsgType.ERROR:
                 print(f"[WS] Error from {username}: {ws.exception()}", flush=True)
     except Exception as e:
-        print(f"[WS] Error: {e}", flush=True)
+        print(f"[WS] Handler error: {e}\n{traceback.format_exc()}", flush=True)
     finally:
-        unregister_bridge(username)
-        print(f"[WS] Bridge disconnected: {username}", flush=True)
+        if username:
+            unregister_bridge(username)
+            print(f"[WS] Bridge disconnected: {username}", flush=True)
     
     return ws
 

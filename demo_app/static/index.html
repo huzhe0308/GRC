@@ -25,6 +25,7 @@
           <button class="nav" data-view="gapTracking">Assessment Tracking</button>
           <button class="nav" data-view="analysis">Analysis Module</button>
           <button class="nav" data-view="wiki">Regulations Wiki</button>
+          <button class="nav" data-view="settings">Settings</button>
         </nav>
 
 
@@ -491,10 +492,30 @@
             </div>
           </div>
         </div>
+        <section id="settings" class="view">
+          <div class="settings-container">
+            <h3>LLM Configuration</h3>
+            <p class="settings-desc">Configure your own LLM API key for AI assistant and analysis features.</p>
+            <div class="settings-form">
+              <label>API Key</label>
+              <input type="password" id="llmApiKey" placeholder="sk-..." />
+              <label>Base URL</label>
+              <input type="text" id="llmBaseUrl" placeholder="https://api.example.com/v1" />
+              <label>Model</label>
+              <input type="text" id="llmModel" placeholder="e.g. gpt-4, minimax, etc." />
+              <button id="saveLlmConfig" class="primary">Save Configuration</button>
+            </div>
+            <hr style="margin: 24px 0; border: none; border-top: 1px solid #e0e0e0;" />
+            <h3>Outlook Bridge Agent</h3>
+            <p class="settings-desc">Download and run the Bridge Agent on your Windows machine to enable email features.</p>
+            <a href="/download/bridge" class="primary" style="display:inline-block;padding:8px 24px;border-radius:6px;text-decoration:none;color:#fff;background:var(--accent,#2563eb);margin-top:8px;">Download Bridge Agent (exe)</a>
+          </div>
+        </section>
+
       </main>
     </div>
 
     <div id="toast" class="toast"></div>
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/app.js?v=12"></script>
   </body>
 </html>
