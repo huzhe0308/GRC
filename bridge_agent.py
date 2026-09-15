@@ -381,11 +381,31 @@ async def connect_and_serve(server_url: str, token: str, reconnect: bool = True)
 
 def main():
     parser = argparse.ArgumentParser(description="GRC Bridge Agent - Outlook COM connector")
-    parser.add_argument("--server", default=None, help="WebSocket server URL (e.g. ws://localhost:7861/ws). If not given, auto-discover from bridge status API.")
-    parser.add_argument("--api", default=None, help="HTTP API base URL for auto-discovery (e.g. http://localhost:7860)")
-    parser.add_argument("--token", required=True, help="Session token for authentication")
+    parser.add_argument("--server", default=None, help="WebSocket server URL. If not given, auto-discover.")
+    parser.add_argument("--api", default=None, help="HTTP API base URL for auto-discovery.")
+    parser.add_argument("--token", default=None, help="Session token for authentication")
     parser.add_argument("--no-reconnect", action="store_true", help="Disable auto-reconnect")
     args = parser.parse_args()
+
+    # If no token provided, prompt interactively (for double-click users)
+    if not args.token:
+        print("=" * 50, flush=True)
+        print("  G.R.C. Bridge Agent", flush=True)
+        print("=" * 50, flush=True)
+        print(flush=True)
+        print("You need a token from the G.R.C. Agent web app.", flush=True)
+        print("  1. Open the web app in your browser", flush=True)
+        print("  2. Click 'Show Token' button", flush=True)
+        print("  3. Copy the token and paste it below", flush=True)
+        print(flush=True)
+        args.token = input("Paste your token here: ").strip()
+        if not args.token:
+            print("Error: Token is required. Exiting.", flush=True)
+            input("Press Enter to exit...")
+            return
+
+    if not args.api:
+        args.api = os.environ.get("GRC_API_URL", "https://grc-production-e359.up.railway.app")
 
     print(f"[Bridge] GRC Bridge Agent starting...", flush=True)
     print(f"[Bridge] Token: {args.token[:8]}...", flush=True)
@@ -393,7 +413,7 @@ def main():
     # Auto-discover WS URL from API if not given
     server_url = args.server
     if not server_url:
-        api_url = args.api or os.environ.get("GRC_API_URL", "http://localhost:7860")
+        api_url = args.api
         try:
             import urllib.request
             req = urllib.request.Request(
@@ -418,11 +438,19 @@ def main():
         print(f"[Bridge] Fallback WS URL: {server_url}", flush=True)
 
     print(f"[Bridge] Server: {server_url}", flush=True)
+    print(f"[Bridge] Connecting...", flush=True)
+    print(flush=True)
 
     try:
         asyncio.run(connect_and_serve(server_url, args.token, reconnect=not args.no_reconnect))
     except KeyboardInterrupt:
         print("\n[Bridge] Shutting down...", flush=True)
+    except Exception as e:
+        print(f"\n[Bridge] Fatal error: {e}", flush=True)
+    
+    print(flush=True)
+    print("Bridge Agent has stopped.", flush=True)
+    input("Press Enter to exit...")
 
 
 if __name__ == "__main__":
