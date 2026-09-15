@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 import urllib.error
 
+from auth import init_db as init_auth_db, register_user, login_user, verify_token, logout_user, get_user_settings, save_user_settings, get_user_llm_config, set_user_llm_config
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = APP_ROOT / "config.yaml"
@@ -485,11 +486,16 @@ def automation_loop() -> None:
 
 
 import base64 as _b64
+import threading as _threading
+
+_thread_local = _threading.local()
 
 AUTH_USERS = {
     "admin": "grc2026",
     "guest": "grc2026",
 }
+
+_PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/register"}
 
 class DemoHandler(BaseHTTPRequestHandler):
     server_version = "GRCAgentDemo/1.0"
@@ -497,26 +503,61 @@ class DemoHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         return
 
+    def _get_current_user(self) -> dict | None:
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            return verify_token(token)
+        return None
+
     def _check_auth(self) -> bool:
-        hdr = self.headers.get("Authorization", "")
-        if hdr.startswith("Basic "):
+        user = self._get_current_user()
+        if user:
+            self._current_user = user
+            _thread_local.current_user = user
+            return True
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Basic "):
             try:
-                decoded = _b64.b64decode(hdr[6:]).decode()
-                user, pwd = decoded.split(":", 1)
-                return AUTH_USERS.get(user) == pwd
+                decoded = _b64.b64decode(auth_header[6:]).decode()
+                user_name, pwd = decoded.split(":", 1)
+                if AUTH_USERS.get(user_name) == pwd:
+                    self._current_user = {"id": 0, "username": user_name, "display_name": user_name}
+                    _thread_local.current_user = self._current_user
+                    return True
             except Exception:
                 pass
+        _thread_local.current_user = None
         return False
 
     def _auth_required(self) -> bool:
+        parsed = urlparse(self.path)
+        if parsed.path in _PUBLIC_PATHS:
+            return False
         if not self._check_auth():
             self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Basic realm="GRC Agent"')
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"Authentication required")
+            self.wfile.write(b'{"error": "Authentication required", "redirect": "/login"}')
             return True
         return False
+
+
+def _current_username() -> str | None:
+    """Get the current request's username from thread-local storage."""
+    user = getattr(_thread_local, 'current_user', None)
+    return user['username'] if user else None
+
+
+def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dict | None:
+    """Try to route a command through the bridge if connected. Returns None if no bridge."""
+    username = _current_username()
+    if not username:
+        return None
+    from bridge_manager import is_bridge_connected, send_bridge_command_sync
+    if is_bridge_connected(username):
+        return send_bridge_command_sync(username, command, params or {}, timeout=timeout)
+    return None
 
     def _send_sse_headers(self) -> None:
         self.send_response(200)
@@ -611,12 +652,16 @@ class DemoHandler(BaseHTTPRequestHandler):
             cancelled["flag"] = True
 
     def do_GET(self) -> None:
-        if self._auth_required():
-            return
         try:
             parsed = urlparse(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
+            
+            if path == "/login":
+                return self.serve_static("login.html", "text/html; charset=utf-8")
+            
+            if self._auth_required():
+                return
             
             # Debug logging
             print(f"[API] GET {path} query={dict(qs)}")
@@ -759,16 +804,67 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return json_response(self, gap_tracking_status())
             if path == "/api/outlook/yesterday":
                 return json_response(self, outlook_yesterday_emails())
+            if path == "/api/settings":
+                user = getattr(self, "_current_user", None)
+                if user and user.get("id"):
+                    settings = get_user_settings(user["id"])
+                    llm = get_user_llm_config(user["id"])
+                    return json_response(self, {"settings": settings, "llm": llm, "user": user})
+                return json_response(self, {"settings": {}, "llm": {}, "user": None})
+            if path == "/api/bridge/status":
+                user = getattr(self, "_current_user", None)
+                from bridge_manager import get_bridge_status
+                status = get_bridge_status(user["username"] if user else "")
+                ws_port_val = int(os.environ.get("WS_PORT", str(int(os.environ.get("PORT", "7860")) + 1)))
+                host_val = urlparse(f"http://{self.headers.get('Host', 'localhost')}").hostname or "localhost"
+                status["ws_url"] = f"ws://{host_val}:{ws_port_val}/ws"
+                return json_response(self, status)
+            if path == "/api/auth/me":
+                user = getattr(self, "_current_user", None)
+                if user:
+                    return json_response(self, {"ok": True, "user": user})
+                return json_response(self, {"ok": False}, status=401)
             return json_response(self, {"error": "Not found"}, status=404)
         except Exception as exc:
             return json_response(self, {"error": str(exc), "trace": traceback.format_exc()}, status=500)
 
     def do_POST(self) -> None:
-        if self._auth_required():
-            return
         try:
             parsed = urlparse(self.path)
             body = self.read_json()
+            
+            if parsed.path == "/api/auth/register":
+                result = register_user(body.get("username", ""), body.get("display_name", ""), body.get("password", ""))
+                return json_response(self, result, status=200 if result.get("ok") else 400)
+            
+            if parsed.path == "/api/auth/login":
+                result = login_user(body.get("username", ""), body.get("password", ""))
+                return json_response(self, result, status=200 if result.get("ok") else 401)
+            
+            if parsed.path == "/api/auth/logout":
+                token = self.headers.get("Authorization", "").replace("Bearer ", "")
+                logout_user(token)
+                return json_response(self, {"ok": True})
+            
+            if self._auth_required():
+                return
+            
+            if parsed.path == "/api/settings":
+                user = getattr(self, "_current_user", None)
+                if user and user.get("id"):
+                    settings = get_user_settings(user["id"])
+                    for k, v in body.items():
+                        settings[k] = v
+                    save_user_settings(user["id"], settings)
+                    return json_response(self, {"ok": True, "settings": settings})
+                return json_response(self, {"ok": False, "error": "Not authenticated"}, status=401)
+            
+            if parsed.path == "/api/settings/llm":
+                user = getattr(self, "_current_user", None)
+                if user and user.get("id"):
+                    set_user_llm_config(user["id"], body.get("api_key", ""), body.get("base_url", ""), body.get("model", ""))
+                    return json_response(self, {"ok": True})
+                return json_response(self, {"ok": False, "error": "Not authenticated"}, status=401)
             if parsed.path == "/api/run":
                 args = ["--send-now" if body.get("send_now") else "--dry-run"]
                 if body.get("force"):
@@ -2491,6 +2587,10 @@ def run_outlook_script(script_name: str, args: list[str] = None, timeout: int = 
 
 def outlook_latest_email(sender_filter: str = "") -> dict:
     """Get the latest email from inbox"""
+    result = _try_bridge("read_latest", {"sender": sender_filter}, timeout=15)
+    if result is not None:
+        return result
+    
     args = []
     if sender_filter:
         args.extend(["-SenderFilter", sender_filter])
@@ -2519,6 +2619,10 @@ def outlook_search_emails(query: str = "", max_results: int = 10) -> dict:
     """Search emails with natural language query or keywords"""
     if not query.strip():
         return {"ok": False, "error": "Query is required"}
+    
+    result = _try_bridge("search_emails", {"query": query, "max_results": max_results}, timeout=30)
+    if result is not None:
+        return result
     
     keywords = query.strip()
     
@@ -2555,6 +2659,10 @@ def outlook_search_emails(query: str = "", max_results: int = 10) -> dict:
 
 def outlook_needs_reply(date_filter: str = "today") -> dict:
     """Check emails that need reply"""
+    result = _try_bridge("needs_reply", {"date": date_filter}, timeout=20)
+    if result is not None:
+        return result
+    
     result = run_outlook_script(
         "check_needs_reply.ps1",
         ["-Date", date_filter, "-AsJson"],
@@ -2585,6 +2693,10 @@ def outlook_find_contact(search_name: str = "") -> dict:
     if not search_name.strip():
         return {"ok": False, "error": "Search name is required"}
     
+    result = _try_bridge("find_contact", {"search_name": search_name}, timeout=15)
+    if result is not None:
+        return result
+    
     result = run_outlook_script(
         "find_contact.ps1",
         ["-searchName", search_name, "-AsJson"],
@@ -2610,6 +2722,10 @@ def outlook_email_detail(entry_id: str = "") -> dict:
     if not entry_id.strip():
         return {"ok": False, "error": "EntryID is required"}
     
+    result = _try_bridge("email_detail", {"entry_id": entry_id}, timeout=20)
+    if result is not None:
+        return result
+    
     result = run_outlook_script(
         "read_email_detail.ps1",
         ["-EntryID", entry_id, "-IncludeBody", "-AsJson"],
@@ -2624,6 +2740,10 @@ def outlook_email_detail(entry_id: str = "") -> dict:
 
 def outlook_yesterday_emails() -> dict:
     """Get yesterday's email digest"""
+    result = _try_bridge("yesterday_emails", timeout=30)
+    if result is not None:
+        return result
+    
     result = run_outlook_script("read_yesterday_emails.ps1", timeout=30)
     
     if result.get("ok"):
@@ -4581,10 +4701,21 @@ def search_knowledge_base(query: str) -> list:
         return {"wiki_hits": [], "memory_hint": None, "error": str(e)}
 
 def main() -> int:
+    init_auth_db()
     host = os.environ.get("DEMO_HOST", "0.0.0.0")
-    port = int(os.environ.get("DEMO_PORT", "7860"))
+    port = int(os.environ.get("PORT", os.environ.get("DEMO_PORT", "7860")))
+    ws_port = int(os.environ.get("WS_PORT", str(port + 1)))
+    
+    # Start WebSocket server in background thread
+    import threading
+    from ws_server import run_ws_server
+    ws_thread = threading.Thread(target=run_ws_server, args=(ws_port,), daemon=True)
+    ws_thread.start()
+    print(f"WebSocket server starting on port {ws_port}")
+    
     server = ThreadingHTTPServer((host, port), DemoHandler)
     print(f"G.R.C. Agent running at http://{host}:{port}")
+    print(f"WebSocket bridge on ws://{host}:{ws_port}")
     print(f"API endpoint: http://{host}:{port}/api/export-markets/data")
     server.serve_forever()
     return 0

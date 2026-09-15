@@ -18,16 +18,44 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+function getToken() {
+  try { return localStorage.getItem("grc_token") || null; } catch (e) { return null; }
+}
+
+function authHeaders(extra) {
+  const headers = Object.assign({ "Content-Type": "application/json" }, extra || {});
+  const token = getToken();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  return headers;
+}
+
+(function checkAuth() {
+  const token = getToken();
+  if (!token) { window.location.href = "/login"; }
+})();
+
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+  try {
+    const response = await fetch(path, {
+      headers: authHeaders(options.headers),
+      ...options,
+    });
+    if (response.status === 401) {
+      localStorage.removeItem("grc_token");
+      window.location.href = "/login";
+      return {};
+    }
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return data;
+  } catch (err) {
+    if (err.message && err.message.includes("Failed to fetch")) {
+      console.error("Network error:", err);
+    }
+    throw err;
   }
-  return data;
 }
 
 function escapeHtml(text = "") {
@@ -3313,3 +3341,26 @@ document.addEventListener("DOMContentLoaded", () => {
 bindEvents();
 refreshAll();
 setInterval(loadStatus, 15000);
+
+// Logout handler
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
+    } catch (e) {}
+    localStorage.removeItem("grc_token");
+    window.location.href = "/login";
+  });
+}
+
+// Load current user info
+fetch("/api/auth/me", { headers: authHeaders() })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok && data.user) {
+      const titleEl = document.querySelector("p.eyebrow");
+      if (titleEl) titleEl.textContent = `G.R.C. Agent — ${data.user.display_name || data.user.username}`;
+    }
+  })
+  .catch(() => {});
