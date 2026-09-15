@@ -62,7 +62,7 @@ async def http_handler(request: web.Request) -> web.Response:
     
     _thread_local.current_user = current_user
     
-    public_paths = {"/login", "/api/auth/login", "/api/auth/register"}
+    public_paths = {"/", "/login", "/api/auth/login", "/api/auth/register"}
     if path not in public_paths and not current_user:
         # Also check Basic auth for backward compat
         import base64
@@ -76,7 +76,7 @@ async def http_handler(request: web.Request) -> web.Response:
                     _thread_local.current_user = current_user
             except Exception:
                 pass
-    
+
     if path not in public_paths and not current_user:
         return web.json_response({"error": "Authentication required", "redirect": "/login"}, status=401)
     
