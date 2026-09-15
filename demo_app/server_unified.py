@@ -162,13 +162,21 @@ async def http_handler(request: web.Request) -> web.Response:
                 q = qs.get("q", [""])[0]
                 return web.json_response(search_knowledge_base(q))
             if path == "/api/outlook/latest":
-                return web.json_response(outlook_latest_email(qs.get("sender", [""])[0]))
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: outlook_latest_email(qs.get("sender", [""])[0]))
+                return web.json_response(result)
             if path == "/api/outlook/search":
-                return web.json_response(outlook_search_emails(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: outlook_search_emails(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
+                return web.json_response(result)
             if path == "/api/outlook/needs-reply":
-                return web.json_response(outlook_needs_reply(qs.get("date", ["today"])[0]))
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: outlook_needs_reply(qs.get("date", ["today"])[0]))
+                return web.json_response(result)
             if path == "/api/outlook/yesterday":
-                return web.json_response(outlook_yesterday_emails())
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: outlook_yesterday_emails())
+                return web.json_response(result)
             if path == "/api/wiki/search":
                 return web.json_response(wiki_search(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
             if path == "/api/wiki/search-semantic":
