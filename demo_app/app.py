@@ -484,11 +484,39 @@ def automation_loop() -> None:
                 AUTOMATION.running = False
 
 
+import base64 as _b64
+
+AUTH_USERS = {
+    "admin": "grc2026",
+    "guest": "grc2026",
+}
+
 class DemoHandler(BaseHTTPRequestHandler):
     server_version = "GRCAgentDemo/1.0"
 
     def log_message(self, format: str, *args: object) -> None:
         return
+
+    def _check_auth(self) -> bool:
+        hdr = self.headers.get("Authorization", "")
+        if hdr.startswith("Basic "):
+            try:
+                decoded = _b64.b64decode(hdr[6:]).decode()
+                user, pwd = decoded.split(":", 1)
+                return AUTH_USERS.get(user) == pwd
+            except Exception:
+                pass
+        return False
+
+    def _auth_required(self) -> bool:
+        if not self._check_auth():
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="GRC Agent"')
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"Authentication required")
+            return True
+        return False
 
     def _send_sse_headers(self) -> None:
         self.send_response(200)
@@ -583,6 +611,8 @@ class DemoHandler(BaseHTTPRequestHandler):
             cancelled["flag"] = True
 
     def do_GET(self) -> None:
+        if self._auth_required():
+            return
         try:
             parsed = urlparse(self.path)
             path = parsed.path
@@ -734,6 +764,8 @@ class DemoHandler(BaseHTTPRequestHandler):
             return json_response(self, {"error": str(exc), "trace": traceback.format_exc()}, status=500)
 
     def do_POST(self) -> None:
+        if self._auth_required():
+            return
         try:
             parsed = urlparse(self.path)
             body = self.read_json()
@@ -4549,7 +4581,7 @@ def search_knowledge_base(query: str) -> list:
         return {"wiki_hits": [], "memory_hint": None, "error": str(e)}
 
 def main() -> int:
-    host = os.environ.get("DEMO_HOST", "127.0.0.1")
+    host = os.environ.get("DEMO_HOST", "0.0.0.0")
     port = int(os.environ.get("DEMO_PORT", "7860"))
     server = ThreadingHTTPServer((host, port), DemoHandler)
     print(f"G.R.C. Agent running at http://{host}:{port}")
