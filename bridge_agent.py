@@ -6,7 +6,7 @@ No WebSocket needed - uses simple HTTP long-polling.
 
 Usage:
     python bridge_agent.py --token <session_token>
-    python bridge_agent.py --api https://grc-production-e359.up.railway.app --token <session_token>
+    python bridge_agent.py --api https://grc-production-efc4.up.railway.app --token <session_token>
 """
 from __future__ import annotations
 
@@ -392,7 +392,7 @@ def poll_loop(api_url: str, token: str, poll_interval: float = 2.0):
 
 def main():
     parser = argparse.ArgumentParser(description="GRC Bridge Agent - Outlook COM connector (HTTP polling)")
-    parser.add_argument("--api", default=None, help="Server API base URL (e.g. https://grc-production-e359.up.railway.app)")
+    parser.add_argument("--api", default=None, help="Server API base URL (e.g. https://grc-production-efc4.up.railway.app)")
     parser.add_argument("--token", default=None, help="Session token for authentication")
     parser.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds (default: 2)")
     args = parser.parse_args()
@@ -415,7 +415,7 @@ def main():
             return
 
     if not args.api:
-        args.api = os.environ.get("GRC_API_URL", "https://grc-production-e359.up.railway.app")
+        args.api = os.environ.get("GRC_API_URL", "https://grc-production-efc4.up.railway.app")
 
     # Remove trailing slash
     args.api = args.api.rstrip("/")
