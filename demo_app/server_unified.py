@@ -97,13 +97,16 @@ async def http_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": "Not found"}, status=404)
 
     # Bridge Agent download
-    if path == "/download/bridge":
-        exe_path = APP_ROOT / "dist" / "GRCBridgeAgent.exe"
+    if path == "/download/bridge" or path == "/static/downloads/GRCBridgeAgent.exe":
+        exe_path = STATIC_DIR / "downloads" / "GRCBridgeAgent.exe"
+        if not exe_path.exists():
+            exe_path = APP_ROOT / "dist" / "GRCBridgeAgent.exe"
         if exe_path.exists():
             return web.FileResponse(str(exe_path), headers={
                 "Content-Disposition": "attachment; filename=GRCBridgeAgent.exe",
+                "Content-Type": "application/octet-stream",
             })
-        return web.json_response({"error": "Bridge Agent exe not built on this server"}, status=404)
+        return web.json_response({"error": "Bridge Agent exe not available"}, status=404)
     
     if path.startswith("/static/") or path.endswith((".css", ".js", ".png", ".svg", ".ico")):
         rel = path.lstrip("/")
