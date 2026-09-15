@@ -1,0 +1,6 @@
+{
+  "outputDirectory": "demo_app/static",
+  "rewrites": [
+    { "source": "/static/(.*)", "destination": "/$1" }
+  ]
+}

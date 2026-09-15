@@ -18,16 +18,36 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+let _demoModeDetected = false;
+
+function showDemoBanner() {
+  if (_demoModeDetected) return;
+  _demoModeDetected = true;
+  const banner = document.createElement("div");
+  banner.style.cssText =
+    "position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff3cd;color:#856404;padding:6px 16px;font-size:13px;text-align:center;border-bottom:1px solid #ffc107;font-family:Segoe UI,Arial,sans-serif;";
+  banner.textContent =
+    "Demo Mode: Backend services are not available. Data shown is for UI preview only.";
+  document.body.prepend(banner);
+  document.body.style.paddingTop = "32px";
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+  try {
+    const response = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      if (response.status === 503) showDemoBanner();
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return data;
+  } catch (err) {
+    if (err.message && err.message.includes("Failed to fetch")) showDemoBanner();
+    throw err;
   }
-  return data;
 }
 
 function escapeHtml(text = "") {
