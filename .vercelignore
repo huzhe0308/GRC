@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+demo_app/
+scripts/
+jira_scripts/
+jira/
+memory/
+tools/
+agents/
+assets/
+references/
+*.py
+*.ps1
+*.bat
+*.md
+*.yaml
+.gitignore
