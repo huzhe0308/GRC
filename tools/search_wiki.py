@@ -21,7 +21,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-ROOT = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki")
+ROOT = Path(__file__).resolve().parents[1] / "wiki"
 WIKI = ROOT
 SYNTHESIS_DIRS = ("concepts", "entities", "comparisons", "queries")
 RAW_DIR = WIKI / "raw"
