@@ -121,14 +121,15 @@ async def http_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": "Not found"}, status=404)
     
     # API routes - import functions from app
-    from app import (
-        get_all_contacts, get_contacts_by_topic, 
-        gap_tracking_status, wiki_search, wiki_search_semantic,
-        outlook_latest_email, outlook_search_emails, outlook_needs_reply,
-        outlook_find_contact, outlook_email_detail, outlook_yesterday_emails,
-        get_chat_sessions, get_chat_messages, search_knowledge_base,
-        get_export_markets_data, get_assessments_sent,
-    )
+        from app import (
+            get_all_contacts, get_contacts_by_topic, 
+            gap_tracking_status, wiki_search, wiki_search_semantic,
+            outlook_latest_email, outlook_search_emails, outlook_needs_reply,
+            outlook_find_contact, outlook_email_detail, outlook_yesterday_emails,
+            get_chat_sessions, get_chat_messages, search_knowledge_base,
+            get_export_markets_data, get_assessments_sent,
+            wiki_files, wiki_counts, read_text, safe_rel_path, WIKI_DIR,
+        )
     
     try:
         # GET routes
@@ -169,6 +170,11 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response(wiki_search(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
             if path == "/api/wiki/search-semantic":
                 return web.json_response(wiki_search_semantic(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
+            if path == "/api/wiki/list":
+                return web.json_response({"files": wiki_files(), "counts": wiki_counts()})
+            if path == "/api/wiki/file":
+                target = safe_rel_path(WIKI_DIR, qs.get("path", [""])[0])
+                return web.json_response({"path": target.relative_to(WIKI_DIR).as_posix(), "text": read_text(target, limit=800000)})
             if path == "/api/settings":
                 if current_user and current_user.get("id"):
                     settings = get_user_settings(current_user["id"])
