@@ -111,9 +111,12 @@ class _TursoConn:
     def _execute(self, sql: str, params) -> Any:
         typed_args = [self._convert_arg(p) for p in params]
         resp = self._requests.post(
-            f"{self._url}/v3/pipeline",
+            f"{self._url}/v2/pipeline",
             headers=self._headers,
-            json={"requests": [{"type": "execute", "stmt": {"sql": sql, "args": typed_args}}]},
+            json={"requests": [
+                {"type": "execute", "stmt": {"sql": sql, "args": typed_args}},
+                {"type": "close"},
+            ]},
             timeout=15,
         )
         resp.raise_for_status()
@@ -128,11 +131,12 @@ class _TursoConn:
 
         resp_data = result.get("response", {})
         if resp_data.get("type") == "execute":
-            cols = [c["name"] for c in resp_data.get("cols", [])]
-            rows_data = resp_data.get("rows", [])
+            exec_result = resp_data.get("result", {})
+            cols = [c["name"] for c in exec_result.get("cols", [])]
+            rows_data = exec_result.get("rows", [])
             rows = []
             for row in rows_data:
-                values = [self._extract_value(v) for v in row.get("value", [])]
+                values = [self._extract_value(v) for v in row]
                 rows.append(_Row(zip(cols, values)))
             return _TursoCursor(rows)
         return _TursoCursor([])
