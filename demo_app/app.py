@@ -22,9 +22,9 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = APP_ROOT / "config.yaml"
 REPORTS_DIR = APP_ROOT / "runtime" / "reports"
 DB_PATH = APP_ROOT / "runtime" / "state.sqlite"
-WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki")
+WIKI_DIR = APP_ROOT / "wiki"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-LAYER3_EXCEL_PATH = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\Report\input\Export_Markets_Layer3_Comparison.xlsx")
+LAYER3_EXCEL_PATH = APP_ROOT / "runtime" / "Export_Markets_Layer3_Comparison.xlsx"
 MONTHLY_REPORT_DEFAULT_TO = [
     "kai.kunze@volkswagen-tech.com", "yi.yu@volkswagen-tech.com", "dawei.chen@cariad-technology.cn",
     "alvaro.huascar.hekler.merino@volkswagen-tech.com", "shuo.he@volkswagen-tech.com", "yumin.ren@volkswagen-tech.com",
@@ -1473,7 +1473,7 @@ def download_pvs_from_jira(parent_key: str, filename: str = "") -> list:
     
     headers = {"Authorization": f"Bearer {jira_token}"}
     
-    RAW_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
+    RAW_DIR = APP_ROOT / "wiki" / "raw" / "pvs"
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     
     downloaded_files = []
@@ -1548,7 +1548,7 @@ def download_pvs_from_jira(parent_key: str, filename: str = "") -> list:
 
 def get_pvs_from_wiki(parent_key: str, market: str) -> list:
     """从Wiki markdown文件读取已解析的Layer3法规"""
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     
     market_key = market.replace("/", "_").replace(" ", "_").lower()
     wiki_file = WIKI_DIR / f"pvs_market_{market_key}.md"
@@ -1595,7 +1595,7 @@ def parse_pvs_excel(parent_key: str, filename: str) -> dict:
     print(f"[PVS] Parsing: {parent_key} / {filename}")
     
     # 目录配置
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     WIKI_DIR.mkdir(parents=True, exist_ok=True)
     
     # 市场映射
@@ -1617,7 +1617,7 @@ def parse_pvs_excel(parent_key: str, filename: str) -> dict:
     target_market = market_mapping.get(parent_key, "Unknown")
     
     # Step 1: 强制重新解析 - 删除旧Wiki
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     market_key = target_market.replace("/", "_").replace(" ", "_").lower()
     wiki_file = WIKI_DIR / f"pvs_market_{market_key}.md"
     if wiki_file.exists():
@@ -1641,7 +1641,7 @@ def parse_pvs_excel(parent_key: str, filename: str) -> dict:
     else:
         # 如果下载失败，查找本地PSV文件
         print(f"[PVS] No download, looking for local PSV...")
-        RAW_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
+        RAW_DIR = APP_ROOT / "wiki" / "raw" / "pvs"
         import re
         def version_key(f):
             matches = re.findall(r'V(\d+)\.0', f.name, re.IGNORECASE)
@@ -1825,7 +1825,7 @@ def parse_pvs_excel(parent_key: str, filename: str) -> dict:
 
 def update_pvs_wiki(parent_key: str, market: str, regulations: list):
     """更新本地Wiki文件"""
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     WIKI_DIR.mkdir(parents=True, exist_ok=True)
     
     market_key = market.replace("/", "_").replace(" ", "_").lower()
@@ -1871,7 +1871,7 @@ def update_pvs_wiki(parent_key: str, market: str, regulations: list):
 
 def update_pvs_summary(new_regulations: list, parent_key: str, market: str):
     """更新汇总Wiki文件"""
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     summary_file = WIKI_DIR / "pvs_layer3_regulations_summary.md"
     
     existing_regs = []
@@ -1934,8 +1934,8 @@ def sync_pvs_wiki() -> dict:
     JIRA_URL = "https://devstack.vgc.com.cn/jira"
     JIRA_TOKEN = "YOUR_JIRA_TOKEN"
     
-    RAW_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
-    WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
+    RAW_DIR = APP_ROOT / "wiki" / "raw" / "pvs"
+    WIKI_DIR = APP_ROOT / "wiki" / "queries"
     
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     WIKI_DIR.mkdir(parents=True, exist_ok=True)
@@ -2439,13 +2439,13 @@ def get_assessments_sent() -> dict:
         return {"sent": [], "count": 0, "error": str(e)}
 
 
-ANALYSIS_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\00-analysis")
+ANALYSIS_DIR = APP_ROOT / "analysis"
 ANALYSIS_SCRIPTS = ANALYSIS_DIR / "scripts"
 
 CHAT_MEMORY_FILE = APP_ROOT / "runtime" / "chat_memory.json"
 CHAT_SESSIONS_FILE = APP_ROOT / "runtime" / "chat_sessions.json"
 
-OUTLOOK_SCRIPTS_DIR = Path(r"C:\Users\T1UKLL7\.config\opencode\skills\nb-outlook-skill\nb-outlook-skill\scripts")
+OUTLOOK_SCRIPTS_DIR = Path.home() / ".config" / "opencode" / "skills" / "nb-outlook-skill" / "nb-outlook-skill" / "scripts"
 
 
 def run_outlook_script(script_name: str, args: list[str] = None, timeout: int = 30) -> dict:
@@ -2761,7 +2761,7 @@ def _load_jira_config() -> tuple[str, str]:
     """Load JIRA URL and token from .jira_config"""
     candidates = [
         APP_ROOT / ".jira_config",
-        Path(r"C:\Users\T1UKLL7\.config\opencode\skills\Jira-access\.jira_config"),
+        Path.home() / ".config" / "opencode" / "skills" / "Jira-access" / ".jira_config",
     ]
     jira_url, jira_token = "", ""
     for path in candidates:
