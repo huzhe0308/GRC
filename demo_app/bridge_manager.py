@@ -1,98 +1,84 @@
-"""Bridge connection manager - tracks WebSocket connections from user bridge agents.
+"""Bridge connection manager - supports HTTP polling (no WebSocket needed).
 
-Supports both async (from ws_server) and sync (from HTTP handler) command dispatch.
+Bridge agents poll /api/bridge/poll for commands and POST results to /api/bridge/result.
 """
 from __future__ import annotations
 
-import asyncio
 import json
+import queue
 import threading
 import time
 import uuid
 from typing import Any
 
-_connections: dict[str, Any] = {}
-_pending_results: dict[str, asyncio.Future | threading.Event] = {}
+_bridge_connections: dict[str, dict] = {}
+_command_queues: dict[str, queue.Queue] = {}
+_pending_results: dict[str, threading.Event] = {}
 _sync_results: dict[str, dict] = {}
-_ws_loop: asyncio.AbstractEventLoop | None = None
 
 
-def set_event_loop(loop: asyncio.AbstractEventLoop) -> None:
-    global _ws_loop
-    _ws_loop = loop
-
-
-def get_event_loop() -> asyncio.AbstractEventLoop | None:
-    return _ws_loop
-
-
-def register_bridge(username: str, websocket: Any) -> None:
-    _connections[username] = websocket
+def register_bridge_http(username: str) -> None:
+    _bridge_connections[username] = {"last_poll": time.time()}
+    if username not in _command_queues:
+        _command_queues[username] = queue.Queue()
 
 
 def unregister_bridge(username: str) -> None:
-    _connections.pop(username, None)
+    _bridge_connections.pop(username, None)
+    _command_queues.pop(username, None)
 
 
 def is_bridge_connected(username: str) -> bool:
-    return username in _connections
+    conn = _bridge_connections.get(username)
+    if not conn:
+        return False
+    if time.time() - conn.get("last_poll", 0) > 30:
+        return False
+    return True
 
 
 def get_bridge_status(username: str) -> dict:
-    if username and username in _connections:
+    if username and is_bridge_connected(username):
         return {"connected": True, "message": "Outlook Bridge is online", "username": username}
-    return {"connected": False, "message": "Outlook Bridge is offline. Email features require the bridge agent running locally.", "username": username}
+    return {"connected": False, "message": "Outlook Bridge is offline. Run the Bridge Agent on your machine to enable email features.", "username": username}
 
 
-async def send_bridge_command_async(username: str, command: str, params: dict = None, timeout: float = 30.0) -> dict:
-    """Send command to bridge via WebSocket (async version)."""
-    if username not in _connections:
-        return {"ok": False, "error": "Bridge not connected"}
-
-    request_id = str(uuid.uuid4())
-    ws = _connections[username]
-    message = json.dumps({"id": request_id, "command": command, "params": params or {}})
-
-    future: asyncio.Future = asyncio.get_event_loop().create_future()
-    _pending_results[request_id] = future
-
+def poll_commands(username: str) -> dict:
+    register_bridge_http(username)
+    _bridge_connections[username]["last_poll"] = time.time()
+    q = _command_queues.get(username)
+    if not q:
+        return {"commands": []}
+    commands = []
     try:
-        await ws.send(message)
-        result = await asyncio.wait_for(future, timeout=timeout)
-        return result
-    except asyncio.TimeoutError:
-        return {"ok": False, "error": "Bridge command timed out"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-    finally:
-        _pending_results.pop(request_id, None)
+        while True:
+            cmd = q.get_nowait()
+            commands.append(cmd)
+    except queue.Empty:
+        pass
+    return {"commands": commands}
+
+
+def submit_result(request_id: str, result: dict) -> None:
+    event = _pending_results.get(request_id)
+    if event:
+        _sync_results[request_id] = result
+        event.set()
 
 
 def send_bridge_command_sync(username: str, command: str, params: dict = None, timeout: float = 30.0) -> dict:
-    """Send command to bridge synchronously (from HTTP handler thread).
-
-    Uses threading.Event to wait for the async result.
-    """
-    if username not in _connections:
+    """Send command to bridge via HTTP polling and wait for result."""
+    if not is_bridge_connected(username):
         return {"ok": False, "error": "Bridge not connected"}
-    if _ws_loop is None:
-        return {"ok": False, "error": "WebSocket event loop not available"}
 
     request_id = str(uuid.uuid4())
-    ws = _connections[username]
-    message = json.dumps({"id": request_id, "command": command, "params": params or {}})
+    q = _command_queues.setdefault(username, queue.Queue())
+    q.put({"id": request_id, "command": command, "params": params or {}})
 
     event = threading.Event()
     _pending_results[request_id] = event
     _sync_results[request_id] = None
 
-    # Schedule the send on the WS event loop
-    async def _send():
-        await ws.send(message)
-
-    asyncio.run_coroutine_threadsafe(_send(), _ws_loop)
-
-    # Wait for result
     if event.wait(timeout=timeout):
         result = _sync_results.get(request_id, {"ok": False, "error": "No result"})
     else:
@@ -103,15 +89,18 @@ def send_bridge_command_sync(username: str, command: str, params: dict = None, t
     return result
 
 
-def resolve_bridge_result(request_id: str, result: dict) -> None:
-    """Resolve a pending bridge command result."""
-    pending = _pending_results.get(request_id)
-    if pending is None:
-        return
+# Legacy WS compat (unused but kept for import compatibility)
+def register_bridge(username: str, websocket: Any = None) -> None:
+    register_bridge_http(username)
 
-    if isinstance(pending, asyncio.Future):
-        if not pending.done():
-            pending.set_result(result)
-    elif isinstance(pending, threading.Event):
-        _sync_results[request_id] = result
-        pending.set()
+
+def set_event_loop(loop: Any = None) -> None:
+    pass
+
+
+def resolve_bridge_result(request_id: str, result: dict) -> None:
+    submit_result(request_id, result)
+
+
+async def send_bridge_command_async(username: str, command: str, params: dict = None, timeout: float = 30.0) -> dict:
+    return send_bridge_command_sync(username, command, params, timeout)

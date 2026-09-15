@@ -535,14 +535,22 @@ async function loadEmails() {
 // Settings page
 async function loadSettings() {
   try {
-    const data = await api("/api/settings");
+    const resp = await fetch("/api/settings", { headers: authHeaders() });
+    const data = await resp.json();
     if (data.llm) {
-      document.getElementById("llmApiKey").value = data.llm.api_key || "";
-      document.getElementById("llmBaseUrl").value = data.llm.base_url || "";
-      document.getElementById("llmModel").value = data.llm.model || "";
+      const apiKeyEl = document.getElementById("llmApiKey");
+      const baseUrlEl = document.getElementById("llmBaseUrl");
+      const modelEl = document.getElementById("llmModel");
+      if (apiKeyEl) apiKeyEl.value = data.llm.api_key || "";
+      if (baseUrlEl) baseUrlEl.value = data.llm.base_url || "https://llm-gateway.dev.cn-vwa.volkswagen-cea.com/v1";
+      if (modelEl) modelEl.value = data.llm.model || "MiniMax";
+    }
+    if (data.settings) {
+      window._userSettings = data.settings;
     }
   } catch (e) {}
 }
+loadSettings();
 
 document.getElementById("saveLlmConfig")?.addEventListener("click", async () => {
   const body = {

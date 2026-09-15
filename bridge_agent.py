@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
-"""Bridge Agent - runs on user's machine, connects to GRC server via WebSocket.
+"""Bridge Agent - runs on user's machine, connects to GRC server via HTTP polling.
 
 Executes Outlook COM commands locally and returns results to the server.
+No WebSocket needed - uses simple HTTP long-polling.
 
 Usage:
-    python bridge_agent.py --server ws://10.126.142.71:7860/ws --token <session_token>
-    python bridge_agent.py --server ws://localhost:7860/ws --token <session_token>
+    python bridge_agent.py --token <session_token>
+    python bridge_agent.py --api https://grc-production-e359.up.railway.app --token <session_token>
 """
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import os
 import sys
 import time
 import traceback
-import urllib.parse
+import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
-
-try:
-    import websockets
-except ImportError:
-    print("ERROR: websockets not installed. Run: pip install websockets", file=sys.stderr)
-    sys.exit(1)
 
 
 def get_outlook():
@@ -317,74 +312,89 @@ COMMANDS = {
 }
 
 
-async def handle_message(message: str) -> str:
-    """Parse incoming command and execute."""
-    try:
-        msg = json.loads(message)
-        msg_id = msg.get("id", "")
-        command = msg.get("command", "")
-        params = msg.get("params", {})
+def handle_command(msg: dict) -> dict:
+    """Execute a command and return result."""
+    msg_id = msg.get("id", "")
+    command = msg.get("command", "")
+    params = msg.get("params", {})
 
-        handler = COMMANDS.get(command)
-        if not handler:
-            result = {"ok": False, "error": f"Unknown command: {command}"}
-        else:
-            try:
-                result = handler(params)
-            except Exception as e:
-                result = {"ok": False, "error": str(e), "trace": traceback.format_exc()}
+    handler = COMMANDS.get(command)
+    if not handler:
+        result = {"ok": False, "error": f"Unknown command: {command}"}
+    else:
+        try:
+            result = handler(params)
+        except Exception as e:
+            result = {"ok": False, "error": str(e), "trace": traceback.format_exc()}
 
-        return json.dumps({"id": msg_id, "result": result})
-    except json.JSONDecodeError:
-        return json.dumps({"id": "", "result": {"ok": False, "error": "Invalid JSON"}})
+    return {"id": msg_id, "result": result}
 
 
-async def connect_and_serve(server_url: str, token: str, reconnect: bool = True):
-    """Connect to server and serve commands."""
-    headers = {"Authorization": f"Bearer {token}"}
+def poll_loop(api_url: str, token: str, poll_interval: float = 2.0):
+    """Main polling loop - polls server for commands, executes them, posts results back."""
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    poll_url = f"{api_url}/api/bridge/poll"
+    result_url = f"{api_url}/api/bridge/result"
 
+    print(f"[Bridge] Polling {poll_url} every {poll_interval}s", flush=True)
+    print(f"[Bridge] Connected! Waiting for commands...", flush=True)
+    print(flush=True)
+
+    consecutive_errors = 0
     while True:
         try:
-            url = f"{server_url}?token={token}"
-            print(f"[Bridge] Connecting to {server_url} ...", flush=True)
+            # Poll for commands
+            req = urllib.request.Request(poll_url, headers=headers, method="GET")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
 
-            async with websockets.connect(url, additional_headers=headers, ping_interval=30, ping_timeout=10) as ws:
-                print(f"[Bridge] Connected! Listening for commands...", flush=True)
+            consecutive_errors = 0
 
-                # Send hello
-                await ws.send(json.dumps({
-                    "type": "hello",
-                    "message": "Bridge agent connected",
-                    "timestamp": time.time(),
-                }))
+            commands = data.get("commands", [])
+            for cmd in commands:
+                print(f"[Bridge] Executing: {cmd.get('command', '?')}", flush=True)
+                result = handle_command(cmd)
+                # Post result back
+                try:
+                    body = json.dumps(result).encode("utf-8")
+                    r = urllib.request.Request(result_url, data=body, headers=headers, method="POST")
+                    with urllib.request.urlopen(r, timeout=10) as resp2:
+                        pass
+                except Exception as e:
+                    print(f"[Bridge] Failed to post result: {e}", flush=True)
 
-                async for message in ws:
-                    try:
-                        response = await handle_message(message)
-                        await ws.send(response)
-                    except Exception as e:
-                        print(f"[Bridge] Error handling message: {e}", file=sys.stderr, flush=True)
+            time.sleep(poll_interval)
 
-        except websockets.exceptions.ConnectionClosed as e:
-            print(f"[Bridge] Connection closed: {e}", flush=True)
-        except ConnectionRefusedError:
-            print(f"[Bridge] Connection refused. Is the server running on {server_url}?", flush=True)
-        except Exception as e:
-            print(f"[Bridge] Error: {e}", flush=True)
-
-        if not reconnect:
+        except KeyboardInterrupt:
+            print("\n[Bridge] Shutting down...", flush=True)
             break
-
-        print("[Bridge] Reconnecting in 5 seconds...", flush=True)
-        await asyncio.sleep(5)
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                print(f"[Bridge] Authentication failed (401). Token may be invalid or expired.", flush=True)
+                consecutive_errors += 1
+                if consecutive_errors >= 3:
+                    print("[Bridge] Too many auth errors. Please get a new token.", flush=True)
+                    break
+            else:
+                print(f"[Bridge] HTTP error: {e.code}", flush=True)
+                consecutive_errors += 1
+            time.sleep(5)
+        except Exception as e:
+            print(f"[Bridge] Polling error: {e}", flush=True)
+            consecutive_errors += 1
+            if consecutive_errors >= 10:
+                print("[Bridge] Too many errors. Waiting 30s...", flush=True)
+                time.sleep(30)
+                consecutive_errors = 0
+            else:
+                time.sleep(5)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GRC Bridge Agent - Outlook COM connector")
-    parser.add_argument("--server", default=None, help="WebSocket server URL. If not given, auto-discover.")
-    parser.add_argument("--api", default=None, help="HTTP API base URL for auto-discovery.")
+    parser = argparse.ArgumentParser(description="GRC Bridge Agent - Outlook COM connector (HTTP polling)")
+    parser.add_argument("--api", default=None, help="Server API base URL (e.g. https://grc-production-e359.up.railway.app)")
     parser.add_argument("--token", default=None, help="Session token for authentication")
-    parser.add_argument("--no-reconnect", action="store_true", help="Disable auto-reconnect")
+    parser.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds (default: 2)")
     args = parser.parse_args()
 
     # If no token provided, prompt interactively (for double-click users)
@@ -407,52 +417,20 @@ def main():
     if not args.api:
         args.api = os.environ.get("GRC_API_URL", "https://grc-production-e359.up.railway.app")
 
+    # Remove trailing slash
+    args.api = args.api.rstrip("/")
+
     print(f"[Bridge] GRC Bridge Agent starting...", flush=True)
     print(f"[Bridge] Token: {args.token[:8]}...", flush=True)
-
-    # Auto-discover WS URL from API if not given
-    server_url = args.server
-    if not server_url:
-        api_url = args.api
-        try:
-            import urllib.request
-            req = urllib.request.Request(
-                f"{api_url}/api/bridge/status",
-                headers={"Authorization": f"Bearer {args.token}"},
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read())
-                ws_url = data.get("ws_url", "")
-                if ws_url:
-                    server_url = ws_url
-                    print(f"[Bridge] Auto-discovered WS URL: {ws_url}", flush=True)
-        except Exception as e:
-            print(f"[Bridge] Auto-discovery failed: {e}", flush=True)
-
-    if not server_url:
-        # Fallback: derive WS URL from API URL
-        api_url = args.api or os.environ.get("GRC_API_URL", "http://localhost:7860")
-        parsed = urllib.parse.urlparse(api_url)
-        if parsed.scheme == "https":
-            server_url = f"wss://{parsed.hostname}/ws"
-        elif parsed.scheme == "http":
-            ws_port = int(parsed.port or 7860) + 1
-            server_url = f"ws://{parsed.hostname or 'localhost'}:{ws_port}/ws"
-        else:
-            server_url = f"ws://{parsed.hostname or 'localhost'}:7861/ws"
-        print(f"[Bridge] Fallback WS URL: {server_url}", flush=True)
-
-    print(f"[Bridge] Server: {server_url}", flush=True)
-    print(f"[Bridge] Connecting...", flush=True)
+    print(f"[Bridge] Server: {args.api}", flush=True)
+    print(f"[Bridge] Mode: HTTP polling (no WebSocket needed)", flush=True)
     print(flush=True)
 
     try:
-        asyncio.run(connect_and_serve(server_url, args.token, reconnect=not args.no_reconnect))
+        poll_loop(args.api, args.token, poll_interval=args.interval)
     except KeyboardInterrupt:
         print("\n[Bridge] Shutting down...", flush=True)
-    except Exception as e:
-        print(f"\n[Bridge] Fatal error: {e}", flush=True)
-    
+
     print(flush=True)
     print("Bridge Agent has stopped.", flush=True)
     input("Press Enter to exit...")

@@ -186,12 +186,13 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response({"settings": {}, "llm": {}, "user": None})
             if path == "/api/bridge/status":
                 status = get_bridge_status(current_user["username"] if current_user else "")
-                # Build ws_url
-                host = request.host
-                # Railway uses wss://, local uses ws://
-                scheme = "wss" if request.scheme == "https" else "ws"
-                status["ws_url"] = f"{scheme}://{host}/ws"
                 return web.json_response(status)
+            if path == "/api/bridge/poll":
+                if not current_user:
+                    return web.json_response({"error": "Auth required"}, status=401)
+                from bridge_manager import poll_commands
+                cmds = poll_commands(current_user["username"])
+                return web.json_response(cmds)
             if path == "/api/auth/me":
                 if current_user:
                     return web.json_response({"ok": True, "user": current_user})
@@ -233,6 +234,13 @@ async def http_handler(request: web.Request) -> web.Response:
                     set_user_llm_config(current_user["id"], body.get("api_key", ""), body.get("base_url", ""), body.get("model", ""))
                     return web.json_response({"ok": True})
                 return web.json_response({"ok": False, "error": "Not authenticated"}, status=401)
+            
+            if path == "/api/bridge/result":
+                if not current_user:
+                    return web.json_response({"error": "Auth required"}, status=401)
+                from bridge_manager import submit_result
+                submit_result(body.get("id", ""), body.get("result", body))
+                return web.json_response({"ok": True})
             
             # Delegate remaining POST routes to app.py functions
             # Import here to avoid circular imports
