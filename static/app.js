@@ -3364,3 +3364,49 @@ fetch("/api/auth/me", { headers: authHeaders() })
     }
   })
   .catch(() => {});
+
+// Bridge Agent status
+async function checkBridgeStatus() {
+  try {
+    const data = await api("/api/bridge/status");
+    const bar = document.getElementById("bridgeBar");
+    const icon = document.getElementById("bridgeStatusIcon");
+    const text = document.getElementById("bridgeStatusText");
+    if (data.connected) {
+      bar.className = "bridge-bar connected";
+      text.textContent = `Outlook Bridge: Connected (${data.username})`;
+    } else {
+      bar.className = "bridge-bar disconnected";
+      text.textContent = "Outlook Bridge: Not connected";
+    }
+  } catch (e) {}
+}
+checkBridgeStatus();
+setInterval(checkBridgeStatus, 10000);
+
+// Token modal
+const tokenBtn = document.getElementById("bridgeTokenBtn");
+const tokenModal = document.getElementById("bridgeTokenModal");
+const closeTokenModal = document.getElementById("closeTokenModal");
+const copyTokenBtn = document.getElementById("copyTokenBtn");
+
+if (tokenBtn) {
+  tokenBtn.addEventListener("click", () => {
+    const token = getToken() || "";
+    document.getElementById("bridgeTokenValue").textContent = token;
+    tokenModal.classList.remove("hidden");
+  });
+}
+if (closeTokenModal) {
+  closeTokenModal.addEventListener("click", () => tokenModal.classList.add("hidden"));
+}
+document.querySelector(".bridge-modal-overlay")?.addEventListener("click", () => tokenModal.classList.add("hidden"));
+if (copyTokenBtn) {
+  copyTokenBtn.addEventListener("click", () => {
+    const token = document.getElementById("bridgeTokenValue").textContent;
+    navigator.clipboard.writeText(token).then(() => {
+      copyTokenBtn.textContent = "Copied!";
+      setTimeout(() => copyTokenBtn.textContent = "Copy", 2000);
+    });
+  });
+}

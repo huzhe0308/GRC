@@ -44,6 +44,30 @@
           </div>
         </header>
 
+        <div id="bridgeBar" class="bridge-bar disconnected">
+          <div class="bridge-bar-left">
+            <span id="bridgeStatusIcon" class="bridge-status-icon">disconnected</span>
+            <span id="bridgeStatusText">Outlook Bridge: Not connected</span>
+          </div>
+          <div class="bridge-bar-right">
+            <button id="bridgeTokenBtn" class="bridge-token-btn">Show Token</button>
+          </div>
+        </div>
+
+        <div id="bridgeTokenModal" class="bridge-modal hidden">
+          <div class="bridge-modal-overlay"></div>
+          <div class="bridge-modal-content">
+            <h3>Outlook Bridge Agent Token</h3>
+            <p>Run the Bridge Agent on your machine with this token:</p>
+            <div class="bridge-token-box">
+              <code id="bridgeTokenValue"></code>
+              <button id="copyTokenBtn" class="ghost">Copy</button>
+            </div>
+            <pre class="bridge-cmd">bridge_agent.exe --api https://grc-production-e359.up.railway.app --token &lt;paste-token&gt;</pre>
+            <button id="closeTokenModal" class="primary">Close</button>
+          </div>
+        </div>
+
                 <section id="dashboard" class="view active">
           <div class="dash-workflow">
             <div class="wf-step active">

@@ -3894,3 +3894,123 @@ button.small {
 .gap-update-topic { color: #666; min-width: 80px; }
 .gap-update-details { color: #0d6efd; flex: 1; }
 .gap-update-time { color: #aaa; font-size: 11px; white-space: nowrap; }
+
+/* Bridge Status Bar */
+.bridge-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  margin: 0 0 12px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+.bridge-bar.connected {
+  background: rgba(76, 175, 80, 0.12);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  color: #2e7d32;
+}
+.bridge-bar.disconnected {
+  background: rgba(255, 152, 0, 0.12);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  color: #e65100;
+}
+.bridge-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bridge-status-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  text-indent: -9999px;
+}
+.bridge-bar.connected .bridge-status-icon {
+  background: #4caf50;
+  box-shadow: 0 0 6px #4caf50;
+}
+.bridge-bar.disconnected .bridge-status-icon {
+  background: #ff9800;
+}
+.bridge-token-btn {
+  background: none;
+  border: 1px solid currentColor;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: inherit;
+  opacity: 0.85;
+}
+.bridge-token-btn:hover { opacity: 1; }
+
+/* Token Modal */
+.bridge-modal.hidden { display: none; }
+.bridge-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bridge-modal-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+.bridge-modal-content {
+  position: relative;
+  background: var(--surface-strong, #fff);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 560px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+.bridge-modal-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+}
+.bridge-modal-content p {
+  margin: 0 0 12px 0;
+  color: #666;
+  font-size: 13px;
+}
+.bridge-token-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.bridge-token-box code {
+  flex: 1;
+  background: #f5f5f5;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  word-break: break-all;
+  border: 1px solid #e0e0e0;
+}
+.bridge-cmd {
+  background: #1e1e1e;
+  color: #4fc3f7;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0 0 16px 0;
+}
+.bridge-modal-content button.primary {
+  background: var(--accent, #2563eb);
+  color: #fff;
+  border: none;
+  padding: 8px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
