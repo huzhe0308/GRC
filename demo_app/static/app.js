@@ -528,9 +528,46 @@ async function loadEmails() {
             emailBodyEl.textContent = state.selectedEmail.body || "No body.";
             emailBodyEl.classList.remove("empty");
           }
-        });
-      });
+    });
+  });
+}
+
+// Settings page
+async function loadSettings() {
+  try {
+    const data = await api("/api/settings");
+    if (data.llm) {
+      document.getElementById("llmApiKey").value = data.llm.api_key || "";
+      document.getElementById("llmBaseUrl").value = data.llm.base_url || "";
+      document.getElementById("llmModel").value = data.llm.model || "";
     }
+  } catch (e) {}
+}
+
+document.getElementById("saveLlmConfig")?.addEventListener("click", async () => {
+  const body = {
+    api_key: document.getElementById("llmApiKey").value,
+    base_url: document.getElementById("llmBaseUrl").value,
+    model: document.getElementById("llmModel").value,
+  };
+  try {
+    await fetch("/api/settings/llm", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    showToast("LLM configuration saved");
+  } catch (e) {
+    showToast("Failed to save: " + e.message);
+  }
+});
+
+// Load settings when switching to settings view
+const origSwitchView = switchView;
+switchView = function(view) {
+  origSwitchView(view);
+  if (view === "settings") loadSettings();
+};
     if (state.emails.length && !state.selectedEmail) {
       const first = document.querySelector("[data-email-index]");
       if (first) first.click();
@@ -3341,3 +3378,72 @@ document.addEventListener("DOMContentLoaded", () => {
 bindEvents();
 refreshAll();
 setInterval(loadStatus, 15000);
+
+// Logout handler
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
+    } catch (e) {}
+    localStorage.removeItem("grc_token");
+    window.location.href = "/login";
+  });
+}
+
+// Load current user info
+fetch("/api/auth/me", { headers: authHeaders() })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok && data.user) {
+      const titleEl = document.querySelector("p.eyebrow");
+      if (titleEl) titleEl.textContent = `G.R.C. Agent — ${data.user.display_name || data.user.username}`;
+    }
+  })
+  .catch(() => {});
+
+// Bridge Agent status
+async function checkBridgeStatus() {
+  try {
+    const data = await api("/api/bridge/status");
+    const bar = document.getElementById("bridgeBar");
+    const icon = document.getElementById("bridgeStatusIcon");
+    const text = document.getElementById("bridgeStatusText");
+    if (data.connected) {
+      bar.className = "bridge-bar connected";
+      text.textContent = `Outlook Bridge: Connected (${data.username})`;
+    } else {
+      bar.className = "bridge-bar disconnected";
+      text.textContent = "Outlook Bridge: Not connected";
+    }
+  } catch (e) {}
+}
+checkBridgeStatus();
+setInterval(checkBridgeStatus, 10000);
+
+// Token modal
+const tokenBtn = document.getElementById("bridgeTokenBtn");
+const tokenModal = document.getElementById("bridgeTokenModal");
+const closeTokenModal = document.getElementById("closeTokenModal");
+const copyTokenBtn = document.getElementById("copyTokenBtn");
+
+if (tokenBtn) {
+  tokenBtn.addEventListener("click", () => {
+    const token = getToken() || "";
+    document.getElementById("bridgeTokenValue").textContent = token;
+    tokenModal.classList.remove("hidden");
+  });
+}
+if (closeTokenModal) {
+  closeTokenModal.addEventListener("click", () => tokenModal.classList.add("hidden"));
+}
+document.querySelector(".bridge-modal-overlay")?.addEventListener("click", () => tokenModal.classList.add("hidden"));
+if (copyTokenBtn) {
+  copyTokenBtn.addEventListener("click", () => {
+    const token = document.getElementById("bridgeTokenValue").textContent;
+    navigator.clipboard.writeText(token).then(() => {
+      copyTokenBtn.textContent = "Copied!";
+      setTimeout(() => copyTokenBtn.textContent = "Copy", 2000);
+    });
+  });
+}
