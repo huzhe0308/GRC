@@ -151,7 +151,11 @@ async def http_handler(request: web.Request) -> web.Response:
                     return web.json_response({"contacts": get_contacts_by_topic(topic), "topic": topic})
                 return web.json_response({"contacts": get_all_contacts()})
             if path == "/api/gap-tracking/status":
-                return web.json_response(await asyncio.to_thread(gap_tracking_status))
+                _cu = current_user
+                def _gap_status():
+                    _thread_local.current_user = _cu
+                    return gap_tracking_status()
+                return web.json_response(await asyncio.to_thread(_gap_status))
             if path == "/api/chat/sessions":
                 return web.json_response({"sessions": get_chat_sessions()})
             if path == "/api/chat/messages":
@@ -180,7 +184,13 @@ async def http_handler(request: web.Request) -> web.Response:
             if path == "/api/wiki/search":
                 return web.json_response(wiki_search(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
             if path == "/api/wiki/search-semantic":
-                return web.json_response(await asyncio.to_thread(wiki_search_semantic, qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
+                _cu = current_user
+                _q = qs.get("q", [""])[0]
+                _lim = int(qs.get("limit", ["10"])[0])
+                def _wiki_semantic():
+                    _thread_local.current_user = _cu
+                    return wiki_search_semantic(_q, _lim)
+                return web.json_response(await asyncio.to_thread(_wiki_semantic))
             if path == "/api/wiki/list":
                 return web.json_response({"files": wiki_files(), "counts": wiki_counts()})
             if path == "/api/wiki/file":
@@ -264,27 +274,67 @@ async def http_handler(request: web.Request) -> web.Response:
             )
             
             if path == "/api/run":
-                args = ["--send-now" if body.get("send_now") else "--dry-run"]
-                if body.get("force"): args.append("--force")
-                return web.json_response(await asyncio.to_thread(run_agent, args))
+                _cu = current_user
+                def _run():
+                    _thread_local.current_user = _cu
+                    args = ["--send-now" if body.get("send_now") else "--dry-run"]
+                    if body.get("force"): args.append("--force")
+                    return run_agent(args)
+                return web.json_response(await asyncio.to_thread(_run))
             if path == "/api/send-report":
-                return web.json_response(await asyncio.to_thread(generate_monthly_report_html, body.get("to", []), body.get("cc", [])))
+                _cu = current_user
+                def _send_report():
+                    _thread_local.current_user = _cu
+                    return generate_monthly_report_html(body.get("to", []), body.get("cc", []))
+                return web.json_response(await asyncio.to_thread(_send_report))
             if path == "/api/assessments/send":
-                return web.json_response(await asyncio.to_thread(send_assessment_email, body))
+                _cu = current_user
+                def _assess_send():
+                    _thread_local.current_user = _cu
+                    return send_assessment_email(body)
+                return web.json_response(await asyncio.to_thread(_assess_send))
             if path == "/api/parse-pvs":
-                return web.json_response(await asyncio.to_thread(parse_pvs_excel, body.get("parent_key", ""), body.get("file_path", "")))
+                _cu = current_user
+                def _parse_pvs():
+                    _thread_local.current_user = _cu
+                    return parse_pvs_excel(body.get("parent_key", ""), body.get("file_path", ""))
+                return web.json_response(await asyncio.to_thread(_parse_pvs))
             if path == "/api/gap-tracking/set-status":
-                return web.json_response(await asyncio.to_thread(gap_tracking_set_status, body.get("market", ""), body.get("topic", ""), body.get("status", "")))
+                _cu = current_user
+                def _gap_set():
+                    _thread_local.current_user = _cu
+                    return gap_tracking_set_status(body.get("market", ""), body.get("topic", ""), body.get("status", ""))
+                return web.json_response(await asyncio.to_thread(_gap_set))
             if path == "/api/gap-tracking/reset-status":
-                return web.json_response(await asyncio.to_thread(gap_tracking_reset, body.get("market", ""), body.get("topic", "")))
+                _cu = current_user
+                def _gap_reset():
+                    _thread_local.current_user = _cu
+                    return gap_tracking_reset(body.get("market", ""), body.get("topic", ""))
+                return web.json_response(await asyncio.to_thread(_gap_reset))
             if path == "/api/gap-tracking/write-summary":
-                return web.json_response(await asyncio.to_thread(write_summary_comment, body.get("market", "")))
+                _cu = current_user
+                def _gap_summary():
+                    _thread_local.current_user = _cu
+                    return write_summary_comment(body.get("market", ""))
+                return web.json_response(await asyncio.to_thread(_gap_summary))
             if path == "/api/gap-tracking/close-jira":
-                return web.json_response(await asyncio.to_thread(close_layer3_ticket, body.get("market", "")))
+                _cu = current_user
+                def _gap_close():
+                    _thread_local.current_user = _cu
+                    return close_layer3_ticket(body.get("market", ""))
+                return web.json_response(await asyncio.to_thread(_gap_close))
             if path == "/api/chat":
-                return web.json_response(await asyncio.to_thread(chat_with_llm, body.get("session_id", ""), body.get("message", "")))
+                _cu = current_user
+                def _chat():
+                    _thread_local.current_user = _cu
+                    return chat_with_llm(body.get("session_id", ""), body.get("message", ""))
+                return web.json_response(await asyncio.to_thread(_chat))
             if path == "/api/chat/send":
-                return web.json_response(await asyncio.to_thread(chat_with_llm, body.get("session_id", ""), body.get("message", "")))
+                _cu = current_user
+                def _chat_send():
+                    _thread_local.current_user = _cu
+                    return chat_with_llm(body.get("session_id", ""), body.get("message", ""))
+                return web.json_response(await asyncio.to_thread(_chat_send))
             if path == "/api/chat/session":
                 return web.json_response(create_chat_session(body.get("title", "")))
             if path == "/api/chat/new-session":
@@ -292,14 +342,30 @@ async def http_handler(request: web.Request) -> web.Response:
             if path == "/api/chat/delete":
                 return web.json_response(delete_chat_session(body.get("session_id", "")))
             if path == "/api/monthly-report/generate":
-                return web.json_response(await asyncio.to_thread(generate_monthly_report_html))
+                _cu = current_user
+                def _monthly_gen():
+                    _thread_local.current_user = _cu
+                    return generate_monthly_report_html()
+                return web.json_response(await asyncio.to_thread(_monthly_gen))
             if path == "/api/monthly-report/send-draft":
-                return web.json_response(await asyncio.to_thread(send_monthly_report_draft, body.get("to", []), body.get("cc", [])))
+                _cu = current_user
+                def _monthly_send():
+                    _thread_local.current_user = _cu
+                    return send_monthly_report_draft(body.get("to", []), body.get("cc", []))
+                return web.json_response(await asyncio.to_thread(_monthly_send))
             if path.startswith("/api/analysis/"):
+                _cu = current_user
                 action = path.split("/api/analysis/")[1]
-                return web.json_response(await asyncio.to_thread(run_analysis_action, action, body))
+                def _analysis():
+                    _thread_local.current_user = _cu
+                    return run_analysis_action(action, body)
+                return web.json_response(await asyncio.to_thread(_analysis))
             if path == "/api/analysis/topic_comments":
-                return web.json_response(await asyncio.to_thread(build_topic_comments_report, body.get("topic", "")))
+                _cu = current_user
+                def _topic_comments():
+                    _thread_local.current_user = _cu
+                    return build_topic_comments_report(body.get("topic", ""))
+                return web.json_response(await asyncio.to_thread(_topic_comments))
             if path == "/api/pvs/sync":
                 return web.json_response(sync_pvs_wiki())
             if path == "/api/pvs/download":
