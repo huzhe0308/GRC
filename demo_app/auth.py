@@ -91,12 +91,11 @@ class _TursoConn:
     def _convert_arg(val):
         if val is None:
             return {"type": "null"}
+        # Turso v2 pipeline API requires all values as strings
         if isinstance(val, bool):
-            return {"type": "integer", "value": 1 if val else 0}
-        if isinstance(val, int):
-            return {"type": "integer", "value": val}
-        if isinstance(val, float):
-            return {"type": "float", "value": val}
+            return {"type": "text", "value": "1" if val else "0"}
+        if isinstance(val, (int, float)):
+            return {"type": "text", "value": str(val)}
         return {"type": "text", "value": str(val)}
 
     @staticmethod
@@ -338,7 +337,6 @@ def set_user_api_key(user_id: int, api_key: str) -> bool:
 
 
 def get_user_llm_config(user_id) -> dict:
-    user_id = int(user_id)
     init_db()
     conn = _get_db()
     try:
@@ -365,7 +363,6 @@ def get_user_llm_config(user_id) -> dict:
 
 
 def set_user_llm_config(user_id, api_key: str, base_url: str, model: str) -> bool:
-    user_id = int(user_id)
     init_db()
     conn = _get_db()
     try:
