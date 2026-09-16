@@ -4102,6 +4102,65 @@ def _build_comments_for_topic(topic: str, market_entries: list) -> list[dict]:
     return results
 
 
+def _call_llm_chat(api_key: str, base_url: str, model: str, messages: list,
+                    temperature: float = 0.7, max_tokens: int = 2000,
+                    timeout: int = 60) -> dict:
+    """Call LLM chat completions API via bridge proxy (preferred) or direct HTTP.
+
+    Returns {"ok": True, "data": result_dict} or {"ok": False, "error": message}.
+    On Railway/cloud the internal LLM gateway is unreachable directly — the bridge
+    agent (running on the user's local machine) proxies the request instead.
+    """
+    is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
+
+    # Try bridge proxy first (bridge agent runs locally and can reach internal LLM gateway)
+    bridge_result = _try_bridge("llm_proxy", {
+        "api_key": api_key,
+        "base_url": base_url,
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }, timeout=max(timeout, 30))
+
+    if bridge_result and bridge_result.get("ok"):
+        return {"ok": True, "data": bridge_result.get("data", {})}
+
+    # On cloud: try direct call ONLY if an HTTP proxy is configured (LLM_PROXY / HTTPS_PROXY).
+    # Without proxy, the internal LLM gateway is unreachable — return error immediately.
+    proxy_url = os.environ.get("LLM_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+    if is_cloud and not proxy_url:
+        err_detail = bridge_result.get("error", "Bridge not connected") if bridge_result else "Bridge not connected"
+        return {"ok": False, "error": f"LLM unreachable on cloud ({err_detail}). Run the Bridge Agent to enable AI."}
+
+    # Direct call (works locally, or on cloud if proxy is configured)
+    try:
+        import urllib.request
+        import urllib.error
+
+        data = json.dumps({
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        return {"ok": True, "data": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def _llm_topic_summary(label: str, markets: list) -> str:
     """Generate a structured Chinese summary for a topic domain via LLM.
     Falls back to a deterministic summary if LLM is unavailable."""
@@ -4138,25 +4197,13 @@ def _llm_topic_summary(label: str, markets: list) -> str:
             f"数据：\n" + "\n".join(market_lines)
         )
 
-        data = json.dumps({
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是一个严谨的汽车法规合规分析助手，只依据给定数据进行分析，不编造事实。请用中文回答。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 800,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=data,
-            headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            result = json.loads(resp.read().decode("utf-8", errors="replace"))
-        return str(result["choices"][0]["message"]["content"]).strip()
+        llm_messages = [
+            {"role": "system", "content": "你是一个严谨的汽车法规合规分析助手，只依据给定数据进行分析，不编造事实。请用中文回答。"},
+            {"role": "user", "content": prompt},
+        ]
+        result = _call_llm_chat(api_key, base_url, model, llm_messages, temperature=0.2, max_tokens=800, timeout=25)
+        if result.get("ok"):
+            return str(result["data"]["choices"][0]["message"]["content"]).strip()
     except Exception as e:
         print(f"[topic_comments] LLM summary failed for {label}: {e}")
         return _fallback_topic_summary(label, markets)
@@ -4213,25 +4260,15 @@ def _llm_market_gap_verdict(market: str, label: str, comments: list, jira_status
             f"示例输出：结论:是; 总结:无Gap，合规。 | 结论:否; 总结:等待供应商反馈"
         )
 
-        data = json.dumps({
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是一个严谨的法规合规审查助手，只依据评论内容进行判断，不编造。用中文输出。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 120,
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=data,
-            headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            result = json.loads(resp.read().decode("utf-8", errors="replace"))
-        content = str(result["choices"][0]["message"]["content"]).strip()
+        llm_messages = [
+            {"role": "system", "content": "你是一个严谨的法规合规审查助手，只依据评论内容进行判断，不编造。用中文输出。"},
+            {"role": "user", "content": prompt},
+        ]
+        result = _call_llm_chat(api_key, base_url, model, llm_messages, temperature=0.1, max_tokens=120, timeout=20)
+        if result.get("ok"):
+            content = str(result["data"]["choices"][0]["message"]["content"]).strip()
+        else:
+            raise RuntimeError(result.get("error", "LLM call failed"))
 
         has_conclusion = False
         summary = ""
@@ -4630,8 +4667,9 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
 
         # Call LLM API - try bridge proxy first (for internal gateway), then direct
         result = None
+        is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
 
-        # Try bridge proxy (bridge agent can reach internal LLM gateway)
+        # Try bridge proxy (bridge agent runs locally and can reach internal LLM gateway)
         bridge_result = _try_bridge("llm_proxy", {
             "api_key": api_key,
             "base_url": base_url,
@@ -4644,7 +4682,19 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
             result = bridge_result.get("data", {})
             print("[chat_with_llm] LLM response via bridge proxy", flush=True)
 
-        # Fallback: direct call (works if LLM gateway is reachable)
+        # On cloud with no working bridge: skip doomed 60s timeout unless proxy is configured
+        _proxy = os.environ.get("LLM_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        if not result and is_cloud and not _proxy:
+            if bridge_result:
+                err_detail = bridge_result.get("error", "bridge command failed")
+            else:
+                err_detail = "Bridge Agent is not connected"
+            return {
+                "ok": False,
+                "error": f"LLM API unreachable from cloud. {err_detail}. Please run the Bridge Agent on your machine to enable AI features.",
+            }
+
+        # Direct call (works locally, or on cloud if proxy is configured)
         if not result:
             import urllib.request
             import urllib.error
@@ -4670,35 +4720,35 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
                 result = json.loads(response.read().decode("utf-8"))
             print("[chat_with_llm] LLM response via direct call", flush=True)
 
-            if "choices" in result and len(result["choices"]) > 0:
-                assistant_content = result["choices"][0]["message"]["content"]
+        if result and "choices" in result and len(result["choices"]) > 0:
+            assistant_content = result["choices"][0]["message"]["content"]
 
-                # Save user message (only the original part, not knowledge context)
-                original_msg = user_message.split("\n\n参考知识库:")[0] if "\n\n参考知识库:" in user_message else user_message
-                save_chat_message(session_id, "user", original_msg)
+            # Save user message (only the original part, not knowledge context)
+            original_msg = user_message.split("\n\n参考知识库:")[0] if "\n\n参考知识库:" in user_message else user_message
+            save_chat_message(session_id, "user", original_msg)
 
-                # Save assistant message
-                save_chat_message(session_id, "assistant", assistant_content)
+            # Save assistant message
+            save_chat_message(session_id, "assistant", assistant_content)
 
-                # Update session
-                sessions = get_chat_sessions()
-                for s in sessions:
-                    if s["id"] == session_id:
-                        s["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                        s["message_count"] = s.get("message_count", 0) + 2
-                        break
-                CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
+            # Update session
+            sessions = get_chat_sessions()
+            for s in sessions:
+                if s["id"] == session_id:
+                    s["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                    s["message_count"] = s.get("message_count", 0) + 2
+                    break
+            CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
 
-                return {
-                    "ok": True,
-                    "response": assistant_content,
-                    "intent_handled": intent_result.get("handled", False),
-                    "intent": intent_result.get("intent"),
-                    "tool_result": intent_result.get("result") if intent_result.get("handled") else None,
-                    "usage": result.get("usage", {})
-                }
-            else:
-                return {"ok": False, "error": "LLM返回格式错误"}
+            return {
+                "ok": True,
+                "response": assistant_content,
+                "intent_handled": intent_result.get("handled", False),
+                "intent": intent_result.get("intent"),
+                "tool_result": intent_result.get("result") if intent_result.get("handled") else None,
+                "usage": result.get("usage", {})
+            }
+        else:
+            return {"ok": False, "error": "LLM返回格式错误"}
 
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else ""
