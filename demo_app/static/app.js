@@ -559,12 +559,17 @@ document.getElementById("saveLlmConfig")?.addEventListener("click", async () => 
     model: document.getElementById("llmModel").value,
   };
   try {
-    await fetch("/api/settings/llm", {
+    const resp = await fetch("/api/settings/llm", {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify(body),
     });
-    showToast("LLM configuration saved");
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast("Failed to save: " + (err.error || resp.status));
+    } else {
+      showToast("LLM configuration saved");
+    }
   } catch (e) {
     showToast("Failed to save: " + e.message);
   }

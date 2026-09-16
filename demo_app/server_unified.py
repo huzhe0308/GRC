@@ -238,6 +238,7 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response({"ok": False, "error": "Not authenticated"}, status=401)
             
             if path == "/api/settings/llm":
+                print(f"[settings/llm] current_user={current_user}, body_keys={list(body.keys()) if isinstance(body, dict) else 'N/A'}", flush=True)
                 if current_user and current_user.get("id"):
                     set_user_llm_config(current_user["id"], body.get("api_key", ""), body.get("base_url", ""), body.get("model", ""))
                     return web.json_response({"ok": True})
