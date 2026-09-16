@@ -110,16 +110,27 @@ class _TursoConn:
 
     def _execute(self, sql: str, params) -> Any:
         typed_args = [self._convert_arg(p) for p in params]
-        resp = self._requests.post(
-            f"{self._url}/v2/pipeline",
-            headers=self._headers,
-            json={"requests": [
-                {"type": "execute", "stmt": {"sql": sql, "args": typed_args}},
-                {"type": "close"},
-            ]},
-            timeout=15,
-        )
-        resp.raise_for_status()
+        try:
+            resp = self._requests.post(
+                f"{self._url}/v2/pipeline",
+                headers=self._headers,
+                json={"requests": [
+                    {"type": "execute", "stmt": {"sql": sql, "args": typed_args}},
+                    {"type": "close"},
+                ]},
+                timeout=15,
+            )
+        except Exception as e:
+            print(f"[turso] request failed: sql={sql[:80]}, error={e}", flush=True)
+            raise
+        if resp.status_code != 200:
+            print(f"[turso] HTTP {resp.status_code}: sql={sql[:80]}", flush=True)
+            try:
+                err_body = resp.json()
+                print(f"[turso] error body: {err_body}", flush=True)
+            except Exception:
+                print(f"[turso] error body: {resp.text[:500]}", flush=True)
+            resp.raise_for_status()
         data = resp.json()
         results = data.get("results", [])
         if not results:
