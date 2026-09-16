@@ -22,7 +22,9 @@ from auth import init_db as init_auth_db, register_user, login_user, verify_toke
 APP_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = APP_ROOT / "config.yaml"
 REPORTS_DIR = APP_ROOT / "runtime" / "reports"
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = APP_ROOT / "runtime" / "state.sqlite"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 WIKI_DIR = APP_ROOT / "wiki"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 LAYER3_EXCEL_PATH = APP_ROOT / "runtime" / "Export_Markets_Layer3_Comparison.xlsx"
