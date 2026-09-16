@@ -4567,10 +4567,13 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
         user = getattr(_thread_local, 'current_user', None)
         if user and user.get("id"):
             user_llm = get_user_llm_config(user["id"])
+            print(f"[chat_with_llm] user_llm from turso: api_key={bool(user_llm.get('api_key'))}, base_url={user_llm.get('base_url')}, model={user_llm.get('model')}", flush=True)
             if user_llm.get("api_key"):
                 llm = user_llm
-    except Exception:
-        pass
+        else:
+            print(f"[chat_with_llm] no current_user in thread_local: {user}", flush=True)
+    except Exception as e:
+        print(f"[chat_with_llm] failed to load user llm config: {e}", flush=True)
 
     try:
         api_key = llm.get("api_key", "") or os.environ.get("LLM_API_KEY", "")
