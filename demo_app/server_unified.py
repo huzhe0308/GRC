@@ -133,6 +133,7 @@ async def http_handler(request: web.Request) -> web.Response:
             get_chat_sessions, get_chat_messages, search_knowledge_base,
             get_export_markets_data, get_assessments_sent,
             wiki_files, wiki_counts, read_text, safe_rel_path, WIKI_DIR,
+            fetch_emails,
         )
         
         # GET routes
@@ -231,6 +232,12 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response(get_export_markets_data())
             if path == "/api/assessments/sent":
                 return web.json_response({"sent": get_assessments_sent()})
+            if path == "/api/emails":
+                _cu = current_user
+                def _fetch_emails():
+                    _thread_local.current_user = _cu
+                    return fetch_emails()
+                return web.json_response(await asyncio.to_thread(_fetch_emails))
             
             return web.json_response({"error": "Not found"}, status=404)
         
