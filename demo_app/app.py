@@ -4557,8 +4557,20 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
     # Intercept email intents first - run tool, pass result to LLM
     intent_result = assistant_intent_router(user_message)
     
+    # Try user-specific LLM config from Turso first, fall back to config.yaml
     cfg = load_config()
     llm = cfg.get("llm", {}) if isinstance(cfg.get("llm", {}), dict) else {}
+
+    # Check per-user LLM config (saved via Settings page -> Turso DB)
+    try:
+        from auth import get_user_llm_config
+        user = getattr(_thread_local, 'current_user', None)
+        if user and user.get("id"):
+            user_llm = get_user_llm_config(user["id"])
+            if user_llm.get("api_key"):
+                llm = user_llm
+    except Exception:
+        pass
 
     try:
         api_key = llm.get("api_key", "") or os.environ.get("LLM_API_KEY", "")
