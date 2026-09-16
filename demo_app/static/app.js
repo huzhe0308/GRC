@@ -581,17 +581,6 @@ switchView = function(view) {
   origSwitchView(view);
   if (view === "settings") loadSettings();
 };
-    if (state.emails.length && !state.selectedEmail) {
-      const first = document.querySelector("[data-email-index]");
-      if (first) first.click();
-    }
-    toast(`Loaded ${state.emails.length} related emails`);
-  } catch (err) {
-    toast(`Failed to read emails: ${err.message}`, true);
-  } finally {
-    setLoading(button, false);
-  }
-}
 
 async function loadWiki() {
   const data = await api("/api/wiki/list");
