@@ -337,8 +337,16 @@ def get_user_llm_config(user_id: int) -> dict:
         return {"api_key": "", "base_url": "", "model": ""}
     conn.close()
     if row:
-        result = {"api_key": row["api_key"] or "", "base_url": row["llm_base_url"] or "", "model": row["llm_model"] or ""}
-        print(f"[auth] get_user_llm_config: user={user_id}, api_key={bool(result['api_key'])}", flush=True)
+        ak = row["api_key"]
+        bu = row["llm_base_url"]
+        md = row["llm_model"]
+        # Turso may return None for columns
+        result = {
+            "api_key": ak if ak else "",
+            "base_url": bu if bu else "",
+            "model": md if md else "",
+        }
+        print(f"[auth] get_user_llm_config: user={user_id}, api_key={bool(result['api_key'])}, key_prefix={result['api_key'][:8] if result['api_key'] else 'N/A'}", flush=True)
         return result
     print(f"[auth] get_user_llm_config: no row for user {user_id}", flush=True)
     return {"api_key": "", "base_url": "", "model": ""}
@@ -348,12 +356,15 @@ def set_user_llm_config(user_id: int, api_key: str, base_url: str, model: str) -
     init_db()
     conn = _get_db()
     try:
-        conn.execute("UPDATE users SET api_key = ?, llm_base_url = ?, llm_model = ? WHERE id = ?", (api_key, base_url, model, user_id))
+        cur = conn.execute("UPDATE users SET api_key = ?, llm_base_url = ?, llm_model = ? WHERE id = ?", (api_key, base_url, model, user_id))
         conn.commit()
-        print(f"[auth] set_user_llm_config: updated user {user_id}, api_key={bool(api_key)}", flush=True)
+        # Verify by reading back
+        verify = conn.execute("SELECT api_key FROM users WHERE id = ?", (user_id,)).fetchone()
+        conn.close()
+        saved = verify["api_key"] if verify else None
+        print(f"[auth] set_user_llm_config: user={user_id}, saved={bool(saved)}, key_prefix={saved[:8] if saved else 'N/A'}", flush=True)
+        return True
     except Exception as e:
         print(f"[auth] set_user_llm_config FAILED: {e}", flush=True)
         conn.close()
         return False
-    conn.close()
-    return True
