@@ -282,7 +282,11 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response(close_layer3_ticket(body.get("market", "")))
             if path == "/api/chat":
                 return web.json_response(chat_with_llm(body.get("session_id", ""), body.get("message", "")))
+            if path == "/api/chat/send":
+                return web.json_response(chat_with_llm(body.get("session_id", ""), body.get("message", "")))
             if path == "/api/chat/session":
+                return web.json_response(create_chat_session(body.get("title", "")))
+            if path == "/api/chat/new-session":
                 return web.json_response(create_chat_session(body.get("title", "")))
             if path == "/api/chat/delete":
                 return web.json_response(delete_chat_session(body.get("session_id", "")))
