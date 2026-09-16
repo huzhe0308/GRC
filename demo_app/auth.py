@@ -326,7 +326,8 @@ def set_user_api_key(user_id: int, api_key: str) -> bool:
     return True
 
 
-def get_user_llm_config(user_id: int) -> dict:
+def get_user_llm_config(user_id) -> dict:
+    user_id = int(user_id)
     init_db()
     conn = _get_db()
     try:
@@ -352,7 +353,8 @@ def get_user_llm_config(user_id: int) -> dict:
     return {"api_key": "", "base_url": "", "model": ""}
 
 
-def set_user_llm_config(user_id: int, api_key: str, base_url: str, model: str) -> bool:
+def set_user_llm_config(user_id, api_key: str, base_url: str, model: str) -> bool:
+    user_id = int(user_id)
     init_db()
     conn = _get_db()
     try:
