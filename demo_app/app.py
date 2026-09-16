@@ -283,15 +283,18 @@ def fetch_emails() -> dict:
         # On cloud: route through bridge agent (Outlook COM is not available on Railway)
         is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
         if is_cloud:
-            keywords = mail_cfg.get('subject_contains', [])
+            keywords = mail_cfg.get('subject_contains', []) or ["CEADU"]
             if isinstance(keywords, str):
                 keywords = [keywords]
+            days_back = int(mail_cfg.get('lookback_days', 30) or 30)
+            max_emails = int(mail_cfg.get('max_emails', 10) or 10)
+            print(f"[DEMO] Cloud scan_emails: keywords={keywords}, days_back={days_back}, limit={max_emails}", flush=True)
             bridge_result = _try_bridge("scan_emails", {
                 "keywords": keywords,
                 "sender_filter": mail_cfg.get('sender_contains', ''),
-                "days_back": mail_cfg.get('lookback_days', 3),
-                "limit": mail_cfg.get('max_emails', 10),
-            }, timeout=30)
+                "days_back": days_back,
+                "limit": max_emails,
+            }, timeout=60)
             if bridge_result and bridge_result.get("ok"):
                 emails = bridge_result.get("emails", [])
                 print(f"[DEMO] Bridge found {len(emails)} emails")
