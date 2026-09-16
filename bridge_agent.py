@@ -656,10 +656,14 @@ def poll_loop(api_url: str, token: str, poll_interval: float = 2.0, silent: bool
                     print("\nYour token has expired. Please get a new token from the web app.", flush=True)
                     input("Press Enter to exit...")
                 break
+            elif e.code in (502, 503, 504):
+                # Railway deployment/restart — wait and retry, don't count as error
+                log(f"Server temporarily unavailable ({e.code}). Retrying...", silent=silent)
+                time.sleep(10)
             else:
                 log(f"HTTP error: {e.code}", silent=silent)
                 consecutive_errors += 1
-            time.sleep(5)
+                time.sleep(5)
         except Exception as e:
             # Timeouts are normal, just retry quietly
             if "timed out" in str(e).lower():
@@ -707,10 +711,15 @@ def main():
         if not token:
             log("No saved token. Run without --silent to configure.", silent=True)
             return
-        try:
-            poll_loop(api_url, token, poll_interval=args.interval, silent=True)
-        except Exception as e:
-            log(f"Fatal error: {e}", silent=True)
+        # Watchdog loop: if poll_loop crashes, restart automatically
+        while True:
+            try:
+                poll_loop(api_url, token, poll_interval=args.interval, silent=True)
+            except SystemExit:
+                raise
+            except Exception as e:
+                log(f"Fatal error: {e}. Restarting in 10s...", silent=True)
+                time.sleep(10)
         return
 
     # Interactive mode
