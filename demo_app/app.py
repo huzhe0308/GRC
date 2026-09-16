@@ -279,6 +279,28 @@ def fetch_emails() -> dict:
 
         config = agent_load_config(CONFIG_PATH)
         mail_cfg = config.get('mail', {})
+
+        # On cloud: route through bridge agent (Outlook COM is not available on Railway)
+        is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
+        if is_cloud:
+            keywords = mail_cfg.get('subject_contains', [])
+            if isinstance(keywords, str):
+                keywords = [keywords]
+            bridge_result = _try_bridge("scan_emails", {
+                "keywords": keywords,
+                "sender_filter": mail_cfg.get('sender_contains', ''),
+                "days_back": mail_cfg.get('lookback_days', 3),
+                "limit": mail_cfg.get('max_emails', 10),
+            }, timeout=30)
+            if bridge_result and bridge_result.get("ok"):
+                emails = bridge_result.get("emails", [])
+                print(f"[DEMO] Bridge found {len(emails)} emails")
+                return {"emails": emails}
+            # Bridge not connected
+            err = bridge_result.get("error", "Bridge not connected") if bridge_result else "Bridge not connected"
+            return {"emails": [], "error": f"Outlook Bridge required for email scanning ({err})"}
+
+        # Local: use direct Outlook COM
         print(f"[DEMO] Config loaded: keywords={mail_cfg.get('subject_contains', [])}")
         emails = []
         for email in find_emails(config):
