@@ -99,6 +99,64 @@ def relaunch_silent(api_url: str, token: str) -> None:
     )
 
 
+def is_already_running() -> bool:
+    """Check if another bridge instance is already running."""
+    try:
+        import ctypes
+        import ctypes.wintypes as w
+        # Try to create a named mutex; if it exists, another instance is running
+        mutex_name = "GRCBridgeAgent_SingleInstance_Mutex"
+        CreateMutex = ctypes.windll.kernel32.CreateMutexW
+        CreateMutex.restype = w.HANDLE
+        CreateMutex.argtypes = [w.LPCVOID, w.BOOL, w.LPCWSTR]
+        GetLastError = ctypes.windll.kernel32.GetLastError
+        GetLastError.restype = w.DWORD
+        GetLastError.argtypes = []
+        ERROR_ALREADY_EXISTS = 183
+        handle = CreateMutex(None, False, mutex_name)
+        if GetLastError() == ERROR_ALREADY_EXISTS:
+            return True
+        # Keep handle alive on this process
+        _MUTEX_HANDLE = handle
+    except Exception:
+        pass
+    return False
+
+
+def setup_autostart() -> None:
+    """Create a Windows startup shortcut so bridge auto-launches on boot."""
+    try:
+        startup_dir = Path(os.environ.get("APPDATA")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        shortcut_path = startup_dir / "GRCBridgeAgent.lnk"
+        exe_path = str(Path(sys.executable).resolve())
+
+        # Use PowerShell to create .lnk shortcut (no extra dependency)
+        ps_script = (
+            f'$s=(New-Object -COM WScript.Shell).CreateShortcut("{shortcut_path}");'
+            f'$s.TargetPath="{exe_path}";'
+            f'$s.Arguments="--silent";'
+            f'$s.WindowStyle=7;'
+            f'$s.Description="GRC Bridge Agent";'
+            f'$s.Save()'
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True, timeout=10,
+        )
+    except Exception:
+        pass
+
+
+def remove_autostart() -> None:
+    """Remove the startup shortcut."""
+    try:
+        startup_dir = Path(os.environ.get("APPDATA")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        shortcut_path = startup_dir / "GRCBridgeAgent.lnk"
+        shortcut_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def get_outlook():
     """Get Outlook COM application object."""
     import win32com.client
@@ -479,12 +537,21 @@ def main():
     parser.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds (default: 2)")
     parser.add_argument("--silent", action="store_true", help="Silent mode (no console, for background use)")
     parser.add_argument("--forget", action="store_true", help="Clear saved token and exit")
+    parser.add_argument("--stop", action="store_true", help="Stop running bridge and disable autostart")
     args = parser.parse_args()
 
-    # --forget: clear saved token and exit
+    # --forget: clear saved token, remove autostart, and exit
     if args.forget:
         clear_config()
-        print("Saved token cleared.", flush=True)
+        remove_autostart()
+        print("Saved token cleared. Autostart removed.", flush=True)
+        input("Press Enter to exit...")
+        return
+
+    # --stop: disable autostart and exit
+    if args.stop:
+        remove_autostart()
+        print("Autostart disabled. You can now close this window.", flush=True)
         input("Press Enter to exit...")
         return
 
@@ -504,6 +571,14 @@ def main():
     # Interactive mode
     api_url = (args.api or load_api_url()).rstrip("/")
 
+    # If already running in background, don't launch another
+    if is_already_running():
+        print("Bridge Agent is already running in the background.", flush=True)
+        print(f"Logs: {LOG_FILE}", flush=True)
+        print("To stop it: run GRCBridgeAgent.exe --stop", flush=True)
+        time.sleep(3)
+        return
+
     # Try saved token first
     token = args.token or load_token()
     if token:
@@ -512,25 +587,29 @@ def main():
             save_config(token, api_url)
             relaunch_silent(api_url, token)
             print("Bridge Agent is now running in the background.", flush=True)
-            print("You can close this window. The bridge will keep running.", flush=True)
+            print("It will auto-start on Windows boot. You never need to open this again.", flush=True)
             print(f"\nLogs: {LOG_FILE}", flush=True)
-            time.sleep(2)
+            print("To change token: run GRCBridgeAgent.exe --forget", flush=True)
+            time.sleep(3)
             return
         else:
             log("Saved token is expired. Please enter a new one.")
             clear_config()
             token = None
 
-    # No valid token - prompt user
+    # No valid token - prompt user (first time)
     if not token:
         print("=" * 50, flush=True)
-        print("  G.R.C. Bridge Agent", flush=True)
+        print("  G.R.C. Bridge Agent - First Time Setup", flush=True)
         print("=" * 50, flush=True)
         print(flush=True)
         print("You need a token from the G.R.C. Agent web app.", flush=True)
         print("  1. Open the web app in your browser", flush=True)
         print("  2. Click 'Show Token' button", flush=True)
         print("  3. Copy the token and paste it below", flush=True)
+        print(flush=True)
+        print("NOTE: You only need to do this once.", flush=True)
+        print("      The bridge will auto-start on Windows boot afterwards.", flush=True)
         print(flush=True)
         args.token = input("Paste your token here: ").strip()
         if not args.token:
@@ -539,15 +618,19 @@ def main():
             return
         token = args.token
 
-    # Save token and relaunch in background
+    # Save token, setup autostart, and relaunch in background
     save_config(token, api_url)
+    setup_autostart()
     print(flush=True)
-    print(f"[Bridge] Token saved. Starting in background...", flush=True)
+    print(f"[Bridge] Token saved. Auto-start configured.", flush=True)
+    print(f"[Bridge] Starting in background...", flush=True)
     relaunch_silent(api_url, token)
-    print("Bridge Agent is now running in the background.", flush=True)
-    print("You can close this window. The bridge will keep running.", flush=True)
+    print(flush=True)
+    print("Done! Bridge Agent is running in the background.", flush=True)
+    print("It will auto-start on Windows boot. You never need to open this again.", flush=True)
     print(f"\nLogs: {LOG_FILE}", flush=True)
-    print(f"To change token later: run GRCBridgeAgent.exe --forget", flush=True)
+    print("To change token: run GRCBridgeAgent.exe --forget", flush=True)
+    print("To disable autostart: run GRCBridgeAgent.exe --stop", flush=True)
     time.sleep(3)
 
 
