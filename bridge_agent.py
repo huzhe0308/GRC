@@ -515,9 +515,73 @@ def cmd_llm_proxy(params: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def cmd_scan_emails(params: dict) -> dict:
+    """Scan inbox for emails matching keywords (like find_emails in run_daily_report).
+    params: keywords (list[str]), sender_filter (str), days_back (int), limit (int)
+    """
+    keywords = params.get("keywords", [])
+    if isinstance(keywords, str):
+        keywords = [keywords]
+    keywords_folded = [k.lower() for k in keywords if k]
+    sender_filter = str(params.get("sender_filter", "")).lower()
+    days_back = int(params.get("days_back", 3))
+    limit = int(params.get("limit", 10))
+
+    inbox = get_inbox()
+    items = inbox.Items
+    items.Sort("[ReceivedTime]", True)
+
+    from datetime import datetime, timedelta
+    cutoff = (datetime.now() - timedelta(days=days_back)).replace(hour=0, minute=0, second=0) if days_back else None
+
+    results = []
+    for item in items:
+        if len(results) >= limit:
+            break
+        try:
+            subject = item.Subject or ""
+            body = item.Body or ""
+            sender_name = item.SenderName or ""
+            sender_email = item.SenderEmailAddress or ""
+            rt = item.ReceivedTime
+            received = datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute, rt.second) if hasattr(rt, 'year') else None
+
+            if received and cutoff and received < cutoff:
+                continue
+            if sender_filter and sender_filter not in sender_name.lower() and sender_filter not in sender_email.lower():
+                continue
+            subject_lower = subject.lower()
+            body_lower = body.lower()
+            if keywords_folded and not all(kw in subject_lower or kw in body_lower for kw in keywords_folded):
+                continue
+
+            attachments = []
+            try:
+                atts = item.Attachments
+                for i in range(1, atts.Count + 1):
+                    attachments.append(atts.Item(i).Filename)
+            except Exception:
+                pass
+
+            results.append({
+                "entryid": item.EntryID or "",
+                "subject": subject,
+                "sender": f"{sender_name} <{sender_email}>" if sender_email else sender_name,
+                "received": str(received)[:19] if received else "",
+                "body": body[:4000],
+                "body_preview": body[:300],
+                "attachments": attachments,
+            })
+        except Exception:
+            continue
+
+    return {"ok": True, "count": len(results), "emails": results}
+
+
 COMMANDS = {
     "ping": cmd_ping,
     "llm_proxy": cmd_llm_proxy,
+    "scan_emails": cmd_scan_emails,
     "read_latest": cmd_read_latest,
     "search_emails": cmd_search_emails,
     "needs_reply": cmd_needs_reply,
