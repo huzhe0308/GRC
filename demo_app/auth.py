@@ -178,7 +178,13 @@ def init_db() -> None:
         return
     conn = _get_db()
     conn.executescript(SCHEMA_SQL)
-    conn.commit()
+    # Ensure columns exist (for tables created before these columns were added)
+    for col, coltype in [("api_key", "TEXT"), ("llm_base_url", "TEXT"), ("llm_model", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {coltype} NOT NULL DEFAULT ''")
+            conn.commit()
+        except Exception:
+            pass  # Column already exists
     conn.close()
     _db_initialized = True
 

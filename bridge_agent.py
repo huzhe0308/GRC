@@ -435,8 +435,43 @@ def cmd_ping(params: dict) -> dict:
     return {"ok": True, "timestamp": time.time(), "message": "Bridge is alive"}
 
 
+def cmd_llm_proxy(params: dict) -> dict:
+    """Proxy LLM request to internal API gateway (accessible from local machine)."""
+    try:
+        import urllib.request as ur
+        api_key = params.get("api_key", "")
+        base_url = params.get("base_url", "https://llm-gateway.dev.cn-vwa.volkswagen-cea.com/v1")
+        model = params.get("model", "MiniMax")
+        messages = params.get("messages", [])
+        temperature = params.get("temperature", 0.7)
+        max_tokens = params.get("max_tokens", 2000)
+
+        body = json.dumps({
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }).encode("utf-8")
+
+        req = ur.Request(
+            f"{base_url}/chat/completions",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with ur.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        return {"ok": True, "data": result}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 COMMANDS = {
     "ping": cmd_ping,
+    "llm_proxy": cmd_llm_proxy,
     "read_latest": cmd_read_latest,
     "search_emails": cmd_search_emails,
     "needs_reply": cmd_needs_reply,

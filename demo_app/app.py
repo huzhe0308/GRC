@@ -4628,29 +4628,47 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
 
         messages.append({"role": "user", "content": user_message})
 
-        # Call LLM API
-        import urllib.request
-        import urllib.error
+        # Call LLM API - try bridge proxy first (for internal gateway), then direct
+        result = None
 
-        data = json.dumps({
+        # Try bridge proxy (bridge agent can reach internal LLM gateway)
+        bridge_result = _try_bridge("llm_proxy", {
+            "api_key": api_key,
+            "base_url": base_url,
             "model": model,
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 2000
-        }).encode("utf-8")
+            "max_tokens": 2000,
+        }, timeout=90)
+        if bridge_result and bridge_result.get("ok"):
+            result = bridge_result.get("data", {})
+            print("[chat_with_llm] LLM response via bridge proxy", flush=True)
 
-        req = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=data,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            method="POST"
-        )
+        # Fallback: direct call (works if LLM gateway is reachable)
+        if not result:
+            import urllib.request
+            import urllib.error
 
-        with urllib.request.urlopen(req, timeout=60) as response:
-            result = json.loads(response.read().decode("utf-8"))
+            data = json.dumps({
+                "model": model,
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 2000
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                f"{base_url}/chat/completions",
+                data=data,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+
+            with urllib.request.urlopen(req, timeout=60) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            print("[chat_with_llm] LLM response via direct call", flush=True)
 
             if "choices" in result and len(result["choices"]) > 0:
                 assistant_content = result["choices"][0]["message"]["content"]
