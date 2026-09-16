@@ -40,11 +40,16 @@ def save_config(token: str, api_url: str) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     TOKEN_FILE.write_text(token, encoding="utf-8")
     API_FILE.write_text(api_url, encoding="utf-8")
+    # Also write token without BOM for urllib header compatibility
+    with open(TOKEN_FILE, "w", encoding="ascii") as f:
+        f.write(token)
+    with open(API_FILE, "w", encoding="ascii") as f:
+        f.write(api_url)
 
 
 def load_token() -> str | None:
     if TOKEN_FILE.exists():
-        t = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        t = TOKEN_FILE.read_text(encoding="utf-8-sig").strip()
         return t if t else None
     return None
 
@@ -145,6 +150,47 @@ def setup_autostart() -> None:
         )
     except Exception:
         pass
+
+
+def self_install() -> str | None:
+    """If running from a temp/download dir, copy exe to a stable location and restart.
+    Returns the new exe path if it relocated, or None if already in a stable location."""
+    if not getattr(sys, "frozen", False):
+        return None  # running as .py script, not exe
+
+    current_exe = Path(sys.executable).resolve()
+    stable_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "GRCBridge"
+    stable_exe = stable_dir / "GRCBridgeAgent.exe"
+
+    # Check if we're in a temp/download directory
+    temp_indicators = [
+        os.environ.get("TEMP", ""),
+        os.environ.get("TMP", ""),
+        str(Path.home() / "Downloads"),
+        "MicrosoftEdgeDownloads",
+        "Temp",
+        "Temporary Internet Files",
+    ]
+
+    current_str = str(current_exe)
+    is_temp = any(ind and ind.lower() in current_str.lower() for ind in temp_indicators if ind)
+
+    if not is_temp and stable_exe.exists():
+        return None  # already stable
+
+    if current_exe == stable_exe:
+        return None  # already at stable location
+
+    # Copy to stable location
+    try:
+        stable_dir.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copy2(str(current_exe), str(stable_exe))
+        print(f"[Bridge] Installed to: {stable_exe}", flush=True)
+        return str(stable_exe)
+    except Exception as e:
+        print(f"[Bridge] Could not self-install: {e}", flush=True)
+        return None
 
 
 def remove_autostart() -> None:
@@ -605,6 +651,16 @@ def main():
 
     # Interactive mode
     api_url = (args.api or load_api_url()).rstrip("/")
+
+    # If running from temp/download dir, self-install to stable location and restart
+    new_exe = self_install()
+    if new_exe:
+        # Re-launch from stable location with same args
+        restart_args = [new_exe]
+        if args.api: restart_args += ["--api", args.api]
+        if args.token: restart_args += ["--token", args.token]
+        subprocess.Popen(restart_args)
+        return
 
     # If already running in background, don't launch another
     if is_already_running():
