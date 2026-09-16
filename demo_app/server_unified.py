@@ -151,7 +151,7 @@ async def http_handler(request: web.Request) -> web.Response:
                     return web.json_response({"contacts": get_contacts_by_topic(topic), "topic": topic})
                 return web.json_response({"contacts": get_all_contacts()})
             if path == "/api/gap-tracking/status":
-                return web.json_response(gap_tracking_status())
+                return web.json_response(await asyncio.to_thread(gap_tracking_status))
             if path == "/api/chat/sessions":
                 return web.json_response({"sessions": get_chat_sessions()})
             if path == "/api/chat/messages":
@@ -180,7 +180,7 @@ async def http_handler(request: web.Request) -> web.Response:
             if path == "/api/wiki/search":
                 return web.json_response(wiki_search(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
             if path == "/api/wiki/search-semantic":
-                return web.json_response(wiki_search_semantic(qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
+                return web.json_response(await asyncio.to_thread(wiki_search_semantic, qs.get("q", [""])[0], int(qs.get("limit", ["10"])[0])))
             if path == "/api/wiki/list":
                 return web.json_response({"files": wiki_files(), "counts": wiki_counts()})
             if path == "/api/wiki/file":
@@ -266,25 +266,25 @@ async def http_handler(request: web.Request) -> web.Response:
             if path == "/api/run":
                 args = ["--send-now" if body.get("send_now") else "--dry-run"]
                 if body.get("force"): args.append("--force")
-                return web.json_response(run_agent(args))
+                return web.json_response(await asyncio.to_thread(run_agent, args))
             if path == "/api/send-report":
-                return web.json_response(generate_monthly_report_html(body.get("to", []), body.get("cc", [])))
+                return web.json_response(await asyncio.to_thread(generate_monthly_report_html, body.get("to", []), body.get("cc", [])))
             if path == "/api/assessments/send":
-                return web.json_response(send_assessment_email(body))
+                return web.json_response(await asyncio.to_thread(send_assessment_email, body))
             if path == "/api/parse-pvs":
-                return web.json_response(parse_pvs_excel(body.get("parent_key", ""), body.get("file_path", "")))
+                return web.json_response(await asyncio.to_thread(parse_pvs_excel, body.get("parent_key", ""), body.get("file_path", "")))
             if path == "/api/gap-tracking/set-status":
-                return web.json_response(gap_tracking_set_status(body.get("market", ""), body.get("topic", ""), body.get("status", "")))
+                return web.json_response(await asyncio.to_thread(gap_tracking_set_status, body.get("market", ""), body.get("topic", ""), body.get("status", "")))
             if path == "/api/gap-tracking/reset-status":
-                return web.json_response(gap_tracking_reset(body.get("market", ""), body.get("topic", "")))
+                return web.json_response(await asyncio.to_thread(gap_tracking_reset, body.get("market", ""), body.get("topic", "")))
             if path == "/api/gap-tracking/write-summary":
-                return web.json_response(write_summary_comment(body.get("market", "")))
+                return web.json_response(await asyncio.to_thread(write_summary_comment, body.get("market", "")))
             if path == "/api/gap-tracking/close-jira":
-                return web.json_response(close_layer3_ticket(body.get("market", "")))
+                return web.json_response(await asyncio.to_thread(close_layer3_ticket, body.get("market", "")))
             if path == "/api/chat":
-                return web.json_response(chat_with_llm(body.get("session_id", ""), body.get("message", "")))
+                return web.json_response(await asyncio.to_thread(chat_with_llm, body.get("session_id", ""), body.get("message", "")))
             if path == "/api/chat/send":
-                return web.json_response(chat_with_llm(body.get("session_id", ""), body.get("message", "")))
+                return web.json_response(await asyncio.to_thread(chat_with_llm, body.get("session_id", ""), body.get("message", "")))
             if path == "/api/chat/session":
                 return web.json_response(create_chat_session(body.get("title", "")))
             if path == "/api/chat/new-session":
@@ -292,14 +292,14 @@ async def http_handler(request: web.Request) -> web.Response:
             if path == "/api/chat/delete":
                 return web.json_response(delete_chat_session(body.get("session_id", "")))
             if path == "/api/monthly-report/generate":
-                return web.json_response(generate_monthly_report_html())
+                return web.json_response(await asyncio.to_thread(generate_monthly_report_html))
             if path == "/api/monthly-report/send-draft":
-                return web.json_response(send_monthly_report_draft(body.get("to", []), body.get("cc", [])))
+                return web.json_response(await asyncio.to_thread(send_monthly_report_draft, body.get("to", []), body.get("cc", [])))
             if path.startswith("/api/analysis/"):
                 action = path.split("/api/analysis/")[1]
-                return web.json_response(run_analysis_action(action, body))
+                return web.json_response(await asyncio.to_thread(run_analysis_action, action, body))
             if path == "/api/analysis/topic_comments":
-                return web.json_response(build_topic_comments_report(body.get("topic", "")))
+                return web.json_response(await asyncio.to_thread(build_topic_comments_report, body.get("topic", "")))
             if path == "/api/pvs/sync":
                 return web.json_response(sync_pvs_wiki())
             if path == "/api/pvs/download":
