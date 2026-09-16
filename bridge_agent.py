@@ -2,11 +2,15 @@
 """Bridge Agent - runs on user's machine, connects to GRC server via HTTP polling.
 
 Executes Outlook COM commands locally and returns results to the server.
-No WebSocket needed - uses simple HTTP long-polling.
+No WebSocket needed - uses simple HTTP polling.
+
+Token is saved on first use, subsequent runs are silent (no console needed).
 
 Usage:
-    python bridge_agent.py --token <session_token>
-    python bridge_agent.py --api https://grc-production-efc4.up.railway.app --token <session_token>
+    python bridge_agent.py                        # auto: saved token or prompt
+    python bridge_agent.py --token <token>        # explicit token
+    python bridge_agent.py --silent               # silent mode (no console)
+    python bridge_agent.py --forget               # clear saved token
 """
 from __future__ import annotations
 
@@ -16,9 +20,83 @@ import os
 import sys
 import time
 import traceback
+import subprocess
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
+from pathlib import Path
+
+
+# ── Token persistence ──────────────────────────────────────────────
+CONFIG_DIR = Path(os.environ.get("APPDATA", str(Path.home()))) / "GRCBridge"
+TOKEN_FILE = CONFIG_DIR / "token.txt"
+API_FILE = CONFIG_DIR / "api_url.txt"
+LOG_FILE = CONFIG_DIR / "bridge.log"
+
+DEFAULT_API = "https://grc-production-efc4.up.railway.app"
+
+
+def save_config(token: str, api_url: str) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    TOKEN_FILE.write_text(token, encoding="utf-8")
+    API_FILE.write_text(api_url, encoding="utf-8")
+
+
+def load_token() -> str | None:
+    if TOKEN_FILE.exists():
+        t = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        return t if t else None
+    return None
+
+
+def load_api_url() -> str:
+    if API_FILE.exists():
+        return API_FILE.read_text(encoding="utf-8").strip().rstrip("/")
+    return DEFAULT_API
+
+
+def clear_config() -> None:
+    TOKEN_FILE.unlink(missing_ok=True)
+
+
+def log(msg: str, silent: bool = False) -> None:
+    line = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+    if not silent:
+        print(line, flush=True)
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def validate_token(api_url: str, token: str) -> bool:
+    """Quick check if token is still valid."""
+    try:
+        req = urllib.request.Request(
+            f"{api_url}/api/bridge/poll",
+            headers={"Authorization": f"Bearer {token}"},
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+        return True
+    except urllib.error.HTTPError as e:
+        return e.code != 401
+    except Exception:
+        return True  # assume valid on network error
+
+
+def relaunch_silent(api_url: str, token: str) -> None:
+    """Relaunch self in background (detached, no console window)."""
+    CREATE_NO_WINDOW = 0x08000000
+    DETACHED_PROCESS = 0x00000008
+    subprocess.Popen(
+        [sys.executable, "--silent", "--api", api_url, "--token", token],
+        creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
+        close_fds=True,
+    )
 
 
 def get_outlook():
@@ -330,60 +408,64 @@ def handle_command(msg: dict) -> dict:
     return {"id": msg_id, "result": result}
 
 
-def poll_loop(api_url: str, token: str, poll_interval: float = 2.0):
+def poll_loop(api_url: str, token: str, poll_interval: float = 2.0, silent: bool = False):
     """Main polling loop - polls server for commands, executes them, posts results back."""
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     poll_url = f"{api_url}/api/bridge/poll"
     result_url = f"{api_url}/api/bridge/result"
 
-    print(f"[Bridge] Polling {poll_url} every {poll_interval}s", flush=True)
-    print(f"[Bridge] Connected! Waiting for commands...", flush=True)
-    print(flush=True)
+    log(f"Polling {poll_url} every {poll_interval}s", silent=silent)
+    log(f"Connected! Waiting for commands...", silent=silent)
 
     consecutive_errors = 0
     while True:
         try:
             # Poll for commands
             req = urllib.request.Request(poll_url, headers=headers, method="GET")
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=30) as resp:
                 data = json.loads(resp.read())
 
             consecutive_errors = 0
 
             commands = data.get("commands", [])
             for cmd in commands:
-                print(f"[Bridge] Executing: {cmd.get('command', '?')}", flush=True)
+                log(f"Executing: {cmd.get('command', '?')}", silent=silent)
                 result = handle_command(cmd)
                 # Post result back
                 try:
                     body = json.dumps(result).encode("utf-8")
                     r = urllib.request.Request(result_url, data=body, headers=headers, method="POST")
-                    with urllib.request.urlopen(r, timeout=10) as resp2:
+                    with urllib.request.urlopen(r, timeout=30) as resp2:
                         pass
                 except Exception as e:
-                    print(f"[Bridge] Failed to post result: {e}", flush=True)
+                    log(f"Failed to post result: {e}", silent=silent)
 
             time.sleep(poll_interval)
 
         except KeyboardInterrupt:
-            print("\n[Bridge] Shutting down...", flush=True)
+            log("Shutting down...", silent=silent)
             break
         except urllib.error.HTTPError as e:
             if e.code == 401:
-                print(f"[Bridge] Authentication failed (401). Token may be invalid or expired.", flush=True)
-                consecutive_errors += 1
-                if consecutive_errors >= 3:
-                    print("[Bridge] Too many auth errors. Please get a new token.", flush=True)
-                    break
+                log("Token expired (401). Please get a new token from the web app.", silent=silent)
+                clear_config()
+                if not silent:
+                    print("\nYour token has expired. Please get a new token from the web app.", flush=True)
+                    input("Press Enter to exit...")
+                break
             else:
-                print(f"[Bridge] HTTP error: {e.code}", flush=True)
+                log(f"HTTP error: {e.code}", silent=silent)
                 consecutive_errors += 1
             time.sleep(5)
         except Exception as e:
-            print(f"[Bridge] Polling error: {e}", flush=True)
+            # Timeouts are normal, just retry quietly
+            if "timed out" in str(e).lower():
+                consecutive_errors = 0
+                continue
+            log(f"Polling error: {e}", silent=silent)
             consecutive_errors += 1
             if consecutive_errors >= 10:
-                print("[Bridge] Too many errors. Waiting 30s...", flush=True)
+                log("Too many errors. Waiting 30s...", silent=silent)
                 time.sleep(30)
                 consecutive_errors = 0
             else:
@@ -392,13 +474,55 @@ def poll_loop(api_url: str, token: str, poll_interval: float = 2.0):
 
 def main():
     parser = argparse.ArgumentParser(description="GRC Bridge Agent - Outlook COM connector (HTTP polling)")
-    parser.add_argument("--api", default=None, help="Server API base URL (e.g. https://grc-production-efc4.up.railway.app)")
+    parser.add_argument("--api", default=None, help="Server API base URL")
     parser.add_argument("--token", default=None, help="Session token for authentication")
     parser.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds (default: 2)")
+    parser.add_argument("--silent", action="store_true", help="Silent mode (no console, for background use)")
+    parser.add_argument("--forget", action="store_true", help="Clear saved token and exit")
     args = parser.parse_args()
 
-    # If no token provided, prompt interactively (for double-click users)
-    if not args.token:
+    # --forget: clear saved token and exit
+    if args.forget:
+        clear_config()
+        print("Saved token cleared.", flush=True)
+        input("Press Enter to exit...")
+        return
+
+    # Silent mode: read token from file, no interaction
+    if args.silent:
+        token = args.token or load_token()
+        api_url = (args.api or load_api_url()).rstrip("/")
+        if not token:
+            log("No saved token. Run without --silent to configure.", silent=True)
+            return
+        try:
+            poll_loop(api_url, token, poll_interval=args.interval, silent=True)
+        except Exception as e:
+            log(f"Fatal error: {e}", silent=True)
+        return
+
+    # Interactive mode
+    api_url = (args.api or load_api_url()).rstrip("/")
+
+    # Try saved token first
+    token = args.token or load_token()
+    if token:
+        if validate_token(api_url, token):
+            log("Token is valid. Starting in background...")
+            save_config(token, api_url)
+            relaunch_silent(api_url, token)
+            print("Bridge Agent is now running in the background.", flush=True)
+            print("You can close this window. The bridge will keep running.", flush=True)
+            print(f"\nLogs: {LOG_FILE}", flush=True)
+            time.sleep(2)
+            return
+        else:
+            log("Saved token is expired. Please enter a new one.")
+            clear_config()
+            token = None
+
+    # No valid token - prompt user
+    if not token:
         print("=" * 50, flush=True)
         print("  G.R.C. Bridge Agent", flush=True)
         print("=" * 50, flush=True)
@@ -413,27 +537,18 @@ def main():
             print("Error: Token is required. Exiting.", flush=True)
             input("Press Enter to exit...")
             return
+        token = args.token
 
-    if not args.api:
-        args.api = os.environ.get("GRC_API_URL", "https://grc-production-efc4.up.railway.app")
-
-    # Remove trailing slash
-    args.api = args.api.rstrip("/")
-
-    print(f"[Bridge] GRC Bridge Agent starting...", flush=True)
-    print(f"[Bridge] Token: {args.token[:8]}...", flush=True)
-    print(f"[Bridge] Server: {args.api}", flush=True)
-    print(f"[Bridge] Mode: HTTP polling (no WebSocket needed)", flush=True)
+    # Save token and relaunch in background
+    save_config(token, api_url)
     print(flush=True)
-
-    try:
-        poll_loop(args.api, args.token, poll_interval=args.interval)
-    except KeyboardInterrupt:
-        print("\n[Bridge] Shutting down...", flush=True)
-
-    print(flush=True)
-    print("Bridge Agent has stopped.", flush=True)
-    input("Press Enter to exit...")
+    print(f"[Bridge] Token saved. Starting in background...", flush=True)
+    relaunch_silent(api_url, token)
+    print("Bridge Agent is now running in the background.", flush=True)
+    print("You can close this window. The bridge will keep running.", flush=True)
+    print(f"\nLogs: {LOG_FILE}", flush=True)
+    print(f"To change token later: run GRCBridgeAgent.exe --forget", flush=True)
+    time.sleep(3)
 
 
 if __name__ == "__main__":
