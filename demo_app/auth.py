@@ -181,10 +181,11 @@ def init_db() -> None:
     # Ensure columns exist (for tables created before these columns were added)
     for col, coltype in [("api_key", "TEXT"), ("llm_base_url", "TEXT"), ("llm_model", "TEXT")]:
         try:
-            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {coltype} NOT NULL DEFAULT ''")
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} {coltype} DEFAULT ''")
             conn.commit()
-        except Exception:
-            pass  # Column already exists
+            print(f"[auth] ALTER TABLE users ADD COLUMN {col} OK", flush=True)
+        except Exception as e:
+            print(f"[auth] ALTER TABLE users ADD COLUMN {col}: {e}", flush=True)
     conn.close()
     _db_initialized = True
 
@@ -328,17 +329,31 @@ def set_user_api_key(user_id: int, api_key: str) -> bool:
 def get_user_llm_config(user_id: int) -> dict:
     init_db()
     conn = _get_db()
-    row = conn.execute("SELECT api_key, llm_base_url, llm_model FROM users WHERE id = ?", (user_id,)).fetchone()
+    try:
+        row = conn.execute("SELECT api_key, llm_base_url, llm_model FROM users WHERE id = ?", (user_id,)).fetchone()
+    except Exception as e:
+        print(f"[auth] get_user_llm_config query FAILED: {e}", flush=True)
+        conn.close()
+        return {"api_key": "", "base_url": "", "model": ""}
     conn.close()
     if row:
-        return {"api_key": row["api_key"], "base_url": row["llm_base_url"], "model": row["llm_model"]}
+        result = {"api_key": row["api_key"] or "", "base_url": row["llm_base_url"] or "", "model": row["llm_model"] or ""}
+        print(f"[auth] get_user_llm_config: user={user_id}, api_key={bool(result['api_key'])}", flush=True)
+        return result
+    print(f"[auth] get_user_llm_config: no row for user {user_id}", flush=True)
     return {"api_key": "", "base_url": "", "model": ""}
 
 
 def set_user_llm_config(user_id: int, api_key: str, base_url: str, model: str) -> bool:
     init_db()
     conn = _get_db()
-    conn.execute("UPDATE users SET api_key = ?, llm_base_url = ?, llm_model = ? WHERE id = ?", (api_key, base_url, model, user_id))
-    conn.commit()
+    try:
+        conn.execute("UPDATE users SET api_key = ?, llm_base_url = ?, llm_model = ? WHERE id = ?", (api_key, base_url, model, user_id))
+        conn.commit()
+        print(f"[auth] set_user_llm_config: updated user {user_id}, api_key={bool(api_key)}", flush=True)
+    except Exception as e:
+        print(f"[auth] set_user_llm_config FAILED: {e}", flush=True)
+        conn.close()
+        return False
     conn.close()
     return True
