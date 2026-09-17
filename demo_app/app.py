@@ -3452,6 +3452,83 @@ def _ensure_gap_table() -> None:
                 recipients TEXT DEFAULT ''
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS registered_tickets (
+                ticket_key TEXT PRIMARY KEY,
+                registered_by TEXT DEFAULT '',
+                registered_at TEXT,
+                jira_status TEXT DEFAULT '',
+                jira_summary TEXT DEFAULT ''
+            )
+        """)
+
+
+def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
+    """Register a JIRA ticket key so it shows up in Assessment Tasks for all users."""
+    ticket_key = ticket_key.strip().upper()
+    if not ticket_key:
+        return {"ok": False, "error": "Ticket key is required"}
+    _ensure_gap_table()
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fetch Jira summary + status if possible
+    jira_status = ""
+    jira_summary = ""
+    try:
+        issue = _jira_get(f"/rest/api/2/issue/{ticket_key}?fields=status,summary")
+        if issue:
+            jira_status = issue.get("fields", {}).get("status", {}).get("name", "")
+            jira_summary = issue.get("fields", {}).get("summary", "")
+    except Exception:
+        pass
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            INSERT INTO registered_tickets (ticket_key, registered_by, registered_at, jira_status, jira_summary)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(ticket_key) DO UPDATE SET
+                registered_at=excluded.registered_at,
+                jira_status=excluded.jira_status,
+                jira_summary=excluded.jira_summary
+        """, (ticket_key, registered_by, now, jira_status, jira_summary))
+    return {"ok": True, "ticket": ticket_key, "jira_status": jira_status, "jira_summary": jira_summary}
+
+
+def unregister_ticket(ticket_key: str) -> dict:
+    """Remove a registered ticket."""
+    ticket_key = ticket_key.strip().upper()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM registered_tickets WHERE ticket_key = ?", (ticket_key,))
+    return {"ok": True}
+
+
+def get_registered_tickets() -> dict:
+    """Get all registered tickets that are not closed (visible to all users)."""
+    _ensure_gap_table()
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            "SELECT ticket_key, registered_by, registered_at, jira_status, jira_summary "
+            "FROM registered_tickets ORDER BY registered_at DESC"
+        ).fetchall()
+    tickets = []
+    for r in rows:
+        status = r["jira_status"] or ""
+        # Exclude closed/done tickets (condition 2: not finished)
+        status_lower = status.lower()
+        if status_lower in ("closed", "done", "resolved", "已关闭", "done ("):
+            continue
+        tickets.append({
+            "key": r["ticket_key"],
+            "registered_by": r["registered_by"],
+            "registered_at": r["registered_at"],
+            "jira_status": status,
+            "jira_summary": r["jira_summary"] or "",
+            "subject": r["jira_summary"] or "",
+            "sender": r["registered_by"] or "",
+            "received": r["registered_at"] or "",
+            "source": "registered",
+        })
+    return {"tickets": tickets}
 
 
 def _mark_market_topic_completed(market: str, topic: str, ticket: str = "", comments: int = 0) -> None:
