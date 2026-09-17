@@ -2386,8 +2386,20 @@ async function scanEmailsForTasks() {
   button.textContent = "Scanning...";
   
   try {
+    // Build query with user keywords if available
+    let emailUrl = "/api/emails";
+    const kwInput = document.getElementById("scanKeywords");
+    const keywords = kwInput ? kwInput.value.trim() : "";
+    if (keywords) {
+      // Save keywords to user settings
+      try {
+        await api("/api/settings", { method: "POST", body: JSON.stringify({ scan_keywords: keywords }) });
+      } catch (e) {}
+      emailUrl += "?keywords=" + encodeURIComponent(keywords);
+    }
+    
     // Fetch emails first (required), then fetch processed keys (optional)
-    const data = await api("/api/emails");
+    const data = await api(emailUrl);
     try {
       const sentData = await api("/api/assessments/sent");
       assessmentState.processedKeys = new Set((sentData.sent || []).map(r => r.ticket));
@@ -3406,12 +3418,23 @@ if (logoutBtn) {
 }
 
 // Load current user info
+let currentUserInfo = null;
 fetch("/api/auth/me", { headers: authHeaders() })
   .then(r => r.json())
   .then(data => {
     if (data.ok && data.user) {
+      currentUserInfo = data.user;
       const titleEl = document.querySelector("p.eyebrow");
       if (titleEl) titleEl.textContent = `G.R.C. Agent — ${data.user.display_name || data.user.username}`;
+      // Show keyword input for non-admin users
+      const kwInput = document.getElementById("scanKeywords");
+      if (kwInput && data.user.username !== "admin") {
+        kwInput.style.display = "inline-block";
+        // Load saved keywords from settings
+        api("/api/settings").then(settings => {
+          if (settings.scan_keywords) kwInput.value = settings.scan_keywords;
+        }).catch(() => {});
+      }
     }
   })
   .catch(() => {});
