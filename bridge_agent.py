@@ -128,6 +128,53 @@ def is_already_running() -> bool:
     return False
 
 
+def kill_running_instances() -> None:
+    """Kill all running GRCBridgeAgent.exe processes except the current one."""
+    try:
+        import subprocess
+        current_pid = os.getpid()
+        result = subprocess.run(
+            ["taskkill", "/IM", "GRCBridgeAgent.exe", "/F"],
+            capture_output=True, text=True, timeout=10,
+        )
+        # taskkill kills ALL instances including current one, but we're still
+        # running because taskkill returns before the process fully exits.
+        # We need to restart ourselves if we were killed.
+        # Actually, let's use a safer approach: kill by PID, excluding current.
+    except Exception:
+        pass
+
+
+def stop_and_replace() -> bool:
+    """Stop any running bridge instance, wait for it to exit, then return True.
+    Returns False if we should not continue (e.g. we killed ourselves)."""
+    try:
+        current_pid = os.getpid()
+        # Find all GRCBridgeAgent.exe PIDs except current
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='GRCBridgeAgent.exe'\" | "
+             "Where-Object { $_.ProcessId -ne " + str(current_pid) + " } | "
+             "Select-Object -ExpandProperty ProcessId"],
+            capture_output=True, text=True, timeout=10,
+        )
+        pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+        if pids:
+            print(f"[Bridge] Stopping previous instance (PID: {', '.join(pids)})...", flush=True)
+            for pid in pids:
+                try:
+                    subprocess.run(["taskkill", "/PID", pid, "/F"],
+                                   capture_output=True, timeout=5)
+                except Exception:
+                    pass
+            time.sleep(2)  # Wait for process to fully exit
+            print("[Bridge] Previous instance stopped.", flush=True)
+            return True
+    except Exception as e:
+        print(f"[Bridge] Stop check: {e}", flush=True)
+    return False
+
+
 def setup_autostart() -> None:
     """Create a Windows startup shortcut so bridge auto-launches on boot."""
     try:
@@ -735,7 +782,10 @@ def main():
         subprocess.Popen(restart_args)
         return
 
-    # If already running in background, don't launch another
+    # Auto-stop any previous instance (so users can just re-download and double-click)
+    stop_and_replace()
+
+    # If already running (stop_and_replace might have missed it), don't launch another
     if is_already_running():
         print("Bridge Agent is already running in the background.", flush=True)
         print(f"Logs: {LOG_FILE}", flush=True)
