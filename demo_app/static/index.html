@@ -141,15 +141,17 @@
                   <h3>🎯 Assessment Tasks</h3>
                   <p>New tasks auto-identified from emails</p>
                 </div>
-                <div class="toolbar" style="flex-wrap:wrap;gap:6px;align-items:center;">
-                  <input type="text" id="scanKeywords" placeholder="Keywords (e.g. CEADU, PSV)" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:140px;display:none;" title="Email scan keywords, comma-separated" />
-                  <button id="scanEmails" class="primary">Scan Emails</button>
-                  <button id="clearTasks" class="ghost" title="Clear task list">Clear</button>
-                  <span id="taskCount" class="pill">0</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;padding:8px 12px;">
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:nowrap;">
+                  <input type="text" id="scanKeywords" placeholder="Keywords" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;width:80px;display:none;flex-shrink:0;" title="Email scan keywords, comma-separated" />
+                  <button id="scanEmails" class="primary" style="flex-shrink:0;">Scan Emails</button>
+                  <input type="text" id="registerTicketInput" placeholder="CEADU-XXXX" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;flex:1;min-width:0;" title="Register a JIRA ticket key" />
+                  <button id="registerTicketBtn" class="ghost" style="flex-shrink:0;white-space:nowrap;">+ Ticket</button>
                 </div>
-                <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
-                  <input type="text" id="registerTicketInput" placeholder="CEADU-XXXX" style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:120px;flex:1;min-width:0;" title="Register a JIRA ticket key" />
-                  <button id="registerTicketBtn" class="ghost" style="white-space:nowrap;">+ Ticket</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <button id="clearTasks" class="ghost" style="font-size:11px;padding:3px 8px;">Clear</button>
+                  <span id="taskCount" class="pill">0</span>
                 </div>
               </div>
               <div id="taskList" class="task-list"></div>
