@@ -270,7 +270,7 @@ def wiki_search_semantic(query: str, limit: int = 10, include_raw: bool = True) 
     return {"hits": parsed, "mode": "semantic"}
 
 
-def fetch_emails() -> dict:
+def fetch_emails(user_keywords: list = None, user_lookback: int = None) -> dict:
     import traceback
     import logging
     sys.path.insert(0, str(APP_ROOT))
@@ -280,14 +280,16 @@ def fetch_emails() -> dict:
         config = agent_load_config(CONFIG_PATH)
         mail_cfg = config.get('mail', {})
 
+        # Determine keywords and lookback: user-provided > config.yaml default
+        keywords = user_keywords or mail_cfg.get('subject_contains', []) or ["CEADU"]
+        if isinstance(keywords, str):
+            keywords = [keywords]
+        days_back = int(user_lookback or mail_cfg.get('lookback_days', 30) or 30)
+        max_emails = int(mail_cfg.get('max_emails', 10) or 10)
+
         # On cloud: route through bridge agent (Outlook COM is not available on Railway)
         is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
         if is_cloud:
-            keywords = mail_cfg.get('subject_contains', []) or ["CEADU"]
-            if isinstance(keywords, str):
-                keywords = [keywords]
-            days_back = int(mail_cfg.get('lookback_days', 30) or 30)
-            max_emails = int(mail_cfg.get('max_emails', 10) or 10)
             print(f"[DEMO] Cloud scan_emails: keywords={keywords}, days_back={days_back}, limit={max_emails}", flush=True)
             bridge_result = _try_bridge("scan_emails", {
                 "keywords": keywords,
@@ -297,14 +299,18 @@ def fetch_emails() -> dict:
             }, timeout=60)
             if bridge_result and bridge_result.get("ok"):
                 emails = bridge_result.get("emails", [])
-                print(f"[DEMO] Bridge found {len(emails)} emails")
+                print(f"[DEMO] Bridge found {len(emails)} emails", flush=True)
                 return {"emails": emails}
             # Bridge not connected
             err = bridge_result.get("error", "Bridge not connected") if bridge_result else "Bridge not connected"
             return {"emails": [], "error": f"Outlook Bridge required for email scanning ({err})"}
 
         # Local: use direct Outlook COM
-        print(f"[DEMO] Config loaded: keywords={mail_cfg.get('subject_contains', [])}")
+        print(f"[DEMO] Local scan: keywords={keywords}, days_back={days_back}", flush=True)
+        # Override config with user keywords for local run
+        config['mail']['subject_contains'] = keywords
+        if user_lookback:
+            config['mail']['lookback_days'] = days_back
         emails = []
         for email in find_emails(config):
             emails.append(
