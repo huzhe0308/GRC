@@ -234,9 +234,36 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response({"sent": get_assessments_sent()})
             if path == "/api/emails":
                 _cu = current_user
+                # Support per-user keywords via query params: /api/emails?keywords=CEADU,PSV&days=30
+                raw_kw = qs.get("keywords", [""])[0]
+                user_keywords = [k.strip() for k in raw_kw.split(",") if k.strip()] if raw_kw else None
+                raw_days = qs.get("days", [""])[0]
+                user_lookback = int(raw_days) if raw_days.isdigit() else None
+
+                # For admin without explicit keywords, use config defaults (None = config.yaml)
+                is_admin = _cu and _cu.get("username") == "admin"
+                if is_admin and not user_keywords:
+                    user_keywords = None  # let fetch_emails use config.yaml
+                elif not is_admin and not user_keywords:
+                    # Non-admin: check user settings for saved keywords
+                    try:
+                        settings = get_user_settings(_cu["id"]) if _cu else {}
+                        saved_kw = settings.get("scan_keywords", "")
+                        if saved_kw:
+                            user_keywords = [k.strip() for k in saved_kw.split(",") if k.strip()]
+                        saved_days = settings.get("scan_lookback_days", "")
+                        if saved_days and not user_lookback:
+                            user_lookback = int(saved_days)
+                    except Exception:
+                        pass
+                    if not user_keywords:
+                        user_keywords = ["CEADU"]  # fallback for non-admin
+
+                _kw = user_keywords
+                _lb = user_lookback
                 def _fetch_emails():
                     _thread_local.current_user = _cu
-                    return fetch_emails()
+                    return fetch_emails(user_keywords=_kw, user_lookback=_lb)
                 return web.json_response(await asyncio.to_thread(_fetch_emails))
             
             return web.json_response({"error": "Not found"}, status=404)
