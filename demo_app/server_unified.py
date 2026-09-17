@@ -133,7 +133,7 @@ async def http_handler(request: web.Request) -> web.Response:
             get_chat_sessions, get_chat_messages, search_knowledge_base,
             get_export_markets_data, get_assessments_sent,
             wiki_files, wiki_counts, read_text, safe_rel_path, WIKI_DIR,
-            fetch_emails,
+            fetch_emails, get_registered_tickets,
         )
         
         # GET routes
@@ -232,6 +232,12 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response(get_export_markets_data())
             if path == "/api/assessments/sent":
                 return web.json_response({"sent": get_assessments_sent()})
+            if path == "/api/tickets/registered":
+                _cu = current_user
+                def _get_reg():
+                    _thread_local.current_user = _cu
+                    return get_registered_tickets()
+                return web.json_response(await asyncio.to_thread(_get_reg))
             if path == "/api/emails":
                 _cu = current_user
                 # Support per-user keywords via query params: /api/emails?keywords=CEADU,PSV&days=30
@@ -317,6 +323,7 @@ async def http_handler(request: web.Request) -> web.Response:
                 run_analysis_action, build_topic_comments_report,
                 create_chat_session, delete_chat_session, save_chat_message,
                 sync_pvs_wiki, download_pvs_from_jira,
+                register_ticket, unregister_ticket,
             )
             
             if path == "/api/run":
@@ -345,6 +352,21 @@ async def http_handler(request: web.Request) -> web.Response:
                     _thread_local.current_user = _cu
                     return parse_pvs_excel(body.get("parent_key", ""), body.get("file_path", ""))
                 return web.json_response(await asyncio.to_thread(_parse_pvs))
+            if path == "/api/tickets/register":
+                _cu = current_user
+                _tk = body.get("ticket", "")
+                _by = _cu.get("username", "") if _cu else ""
+                def _reg_ticket():
+                    _thread_local.current_user = _cu
+                    return register_ticket(_tk, _by)
+                return web.json_response(await asyncio.to_thread(_reg_ticket))
+            if path == "/api/tickets/unregister":
+                _cu = current_user
+                _tk = body.get("ticket", "")
+                def _unreg_ticket():
+                    _thread_local.current_user = _cu
+                    return unregister_ticket(_tk)
+                return web.json_response(await asyncio.to_thread(_unreg_ticket))
             if path == "/api/gap-tracking/set-status":
                 _cu = current_user
                 def _gap_set():
