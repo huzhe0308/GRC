@@ -1472,7 +1472,7 @@ label {
 /* Assessment Module */
 .assessment-layout {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 360px 1fr;
   gap: 20px;
   padding: 16px 20px;
   min-height: calc(100vh - 220px);
