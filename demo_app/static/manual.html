@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>G.R.C. Agent — 用户手册</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --text: #1a202c;
+      --text-muted: #64748b;
+      --accent: #0f6f86;
+      --accent-light: #e0f2fe;
+      --accent-dark: #0b5467;
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+      --green: #16a34a;
+      --green-light: #dcfce7;
+      --amber: #d97706;
+      --amber-light: #fef3c7;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --blue: #2563eb;
+      --blue-light: #dbeafe;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-lg: 0 10px 30px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      overflow-y: auto;
+      z-index: 100;
+    }
+    .main { margin-left: 260px; padding: 40px 48px; max-width: 900px; }
+
+    /* Sidebar */
+    .sidebar-brand {
+      padding: 0 24px 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .sidebar-brand h2 { font-size: 18px; color: var(--accent); }
+    .sidebar-brand p { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .sidebar nav a {
+      display: block;
+      padding: 8px 24px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover { background: var(--surface-alt); color: var(--accent); }
+    .sidebar nav a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-light);
+      font-weight: 600;
+    }
+    .sidebar nav a.sub { padding-left: 40px; font-size: 12px; }
+
+    /* Content */
+    h1 { font-size: 28px; margin: 48px 0 8px; color: var(--text); }
+    h1:first-child { margin-top: 0; }
+    h2 { font-size: 22px; margin: 36px 0 12px; color: var(--accent-dark); padding-bottom: 8px; border-bottom: 2px solid var(--accent-light); }
+    h3 { font-size: 17px; margin: 24px 0 8px; color: var(--text); }
+    h4 { font-size: 15px; margin: 16px 0 6px; color: var(--text); font-weight: 600; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 8px 0 8px 24px; }
+    li { margin: 4px 0; }
+
+    /* Components */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin: 16px 0;
+      box-shadow: var(--shadow);
+    }
+    .card-blue { border-left: 4px solid var(--blue); background: var(--blue-light); }
+    .card-green { border-left: 4px solid var(--green); background: var(--green-light); }
+    .card-amber { border-left: 4px solid var(--amber); background: var(--amber-light); }
+    .card-red { border-left: 4px solid var(--red); background: var(--red-light); }
+
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+    th { background: var(--accent); color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+    td { padding: 8px 14px; border-bottom: 1px solid var(--border-light); }
+    tr:nth-child(even) td { background: var(--surface-alt); }
+
+    code {
+      background: #f1f5f9;
+      color: var(--accent-dark);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 13px;
+    }
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 16px 20px;
+      border-radius: var(--radius);
+      overflow-x: auto;
+      margin: 12px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-green { background: var(--green-light); color: var(--green); }
+    .badge-blue { background: var(--blue-light); color: var(--blue); }
+    .badge-amber { background: var(--amber-light); color: var(--amber); }
+    .badge-gray { background: #f1f5f9; color: var(--text-muted); }
+    .badge-red { background: var(--red-light); color: var(--red); }
+
+    .step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin: 12px 0;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .step-content { flex: 1; }
+
+    .faq-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .faq-q {
+      padding: 12px 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--surface-alt);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .faq-q::after { content: "▼"; font-size: 10px; color: var(--text-muted); }
+    .faq-q.open::after { transform: rotate(180deg); }
+    .faq-a {
+      padding: 0 16px;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+    .faq-a.open { max-height: 400px; padding: 12px 16px; }
+
+    .toc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 28px; margin: 20px 0; }
+    .toc h3 { margin-top: 0; }
+    .toc ol { margin-left: 20px; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    .workflow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+    .workflow-step {
+      background: var(--accent-light);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 12px 20px;
+      text-align: center;
+      font-weight: 600;
+      color: var(--accent-dark);
+    }
+    .workflow-arrow { font-size: 20px; color: var(--text-muted); }
+
+    .status-table td:first-child { white-space: nowrap; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <h2>G.R.C. Agent</h2>
+      <p>用户手册 v1.0</p>
+    </div>
+    <nav>
+      <a href="#intro">1. 系统简介</a>
+      <a href="#prepare">2. 首次使用准备</a>
+      <a href="#account">3. 账号注册与登录</a>
+      <a href="#bridge">4. 安装 Bridge Agent</a>
+      <a href="#llm">5. 配置 AI 助手</a>
+      <a href="#modules">6. 功能模块详解</a>
+      <a href="#dashboard" class="sub">6.1 Dashboard</a>
+      <a href="#assessment" class="sub">6.2 评估分配</a>
+      <a href="#tracking" class="sub">6.3 评估追踪</a>
+      <a href="#analysis" class="sub">6.4 分析模块</a>
+      <a href="#wiki" class="sub">6.5 法规知识库</a>
+      <a href="#settings" class="sub">6.6 设置</a>
+      <a href="#ai-assistant">7. AI 助手指南</a>
+      <a href="#bridge-mgmt">8. Bridge 管理</a>
+      <a href="#faq">9. 常见问题</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <h1 id="intro">G.R.C. Agent 用户手册</h1>
+    <p style="color: var(--text-muted); font-size: 14px;">Governance. Regulation. Compliance. — 汽车出口市场法规合规管理平台</p>
+
+    <div class="card card-blue">
+      <strong>系统定位：</strong>帮助团队完成从评估分配到最终月报的完整工作流，覆盖 10 个出口市场、6 个评估领域。
+    </div>
+
+    <h2>三段式工作流</h2>
+    <div class="workflow">
+      <div class="workflow-step">📋 评估分配<br><small>扫描邮件 → PSV解析 → 分配负责人</small></div>
+      <span class="workflow-arrow">→</span>
+      <div class="workflow-step">📊 评估追踪<br><small>Gap分析 → Summary写入Jira → 关闭工单</small></div>
+      <span class="workflow-arrow">→</span>
+      <div class="workflow-step">📈 综合分析<br><small>月报生成 → 发送团队</small></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>覆盖市场</th><th>评估领域</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Korea, ASEAN RHD/LHD, India, Middle East, Kazakhstan, Uzbekistan, Turkey, AUS/NZL</td><td>Cyber Security, Data Security, OTA, OBD, Functional Safety, Immobilizer</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 2. 准备 -->
+    <h1 id="prepare">2. 首次使用准备</h1>
+    <table>
+      <thead><tr><th>项目</th><th>要求</th></tr></thead>
+      <tbody>
+        <tr><td>浏览器</td><td>Chrome / Edge / Firefox（推荐最新版）</td></tr>
+        <tr><td>操作系统</td><td>Windows 10/11（Bridge Agent 需要）</td></tr>
+        <tr><td>Outlook</td><td>已安装并登录邮箱账户（邮件功能需要）</td></tr>
+        <tr><td>网络</td><td>能访问公司内网（Jira、LLM 网关）</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 3. 账号 -->
+    <h1 id="account">3. 账号注册与登录</h1>
+    <h3>注册新账号</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">打开系统网址，进入登录页面</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">点击页面下方的 <strong>Register</strong> 切换到注册界面</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">填写：<strong>Username</strong>（小写英文）、<strong>Display Name</strong>（显示名称）、<strong>Password</strong>（至少6位）、<strong>Confirm Password</strong></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">点击 <strong>Create Account</strong>，注册成功后使用用户名和密码登录</div></div>
+    <div class="card card-amber">
+      <strong>注意：</strong>账号 Token 有效期 7 天，超时后需要重新登录。
+    </div>
+
+    <!-- 4. Bridge Agent -->
+    <h1 id="bridge">4. 安装 Bridge Agent（邮件代理）</h1>
+    <div class="card card-blue">
+      <strong>Bridge Agent 是什么？</strong>一个运行在你本地电脑上的小程序，让云端系统通过你的电脑访问 Outlook 邮件和 AI 大模型。<strong>没有它，邮件功能和 AI 助手无法工作。</strong>
+    </div>
+    <h3>安装步骤</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">登录系统后，点击左侧导航栏 <strong>Settings</strong></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">点击 <strong>Download Bridge Agent (exe)</strong> 下载程序</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>双击</strong>下载的 <code>GRCBridgeAgent.exe</code></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">程序会弹出一个命令行窗口，提示输入 Token</div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-content">回到网页 <strong>Settings</strong> → <strong>Show Token</strong> → 复制 Token</div></div>
+    <div class="step"><div class="step-num">6</div><div class="step-content">粘贴到命令行窗口，按回车</div></div>
+
+    <h3>安装成功标志</h3>
+    <div class="card card-green">
+      ✅ 命令行窗口自动关闭（程序转入后台运行）<br>
+      ✅ 网页顶部显示 <span class="badge badge-green">Outlook Bridge: Connected</span><br>
+      ✅ 程序已设置为<strong>开机自启</strong>，无需重复操作
+    </div>
+
+    <!-- 5. LLM -->
+    <h1 id="llm">5. 配置 AI 助手</h1>
+    <div class="step"><div class="step-num">1</div><div class="step-content">点击左侧导航栏 <strong>Settings</strong></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">在 <strong>LLM Configuration</strong> 区域输入 <strong>API Key</strong>（如 <code>sk-xxxx</code>）</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">Base URL 和 Model 已预填，无需修改</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">点击 <strong>Save Configuration</strong></div></div>
+    <div class="card card-amber">如不知道 API Key，请联系管理员获取。</div>
+
+    <!-- 6. Modules -->
+    <h1 id="modules">6. 功能模块详解</h1>
+
+    <h2 id="dashboard">6.1 Dashboard 仪表盘</h2>
+    <p>系统首页，展示三段式工作流概览。</p>
+    <table>
+      <thead><tr><th>卡片</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>Assessment Allocation</td><td>显示当前待评估任务数量，可快速扫描邮件</td></tr>
+        <tr><td>Assessment Tracking</td><td>显示各市场 Gap 分析进度</td></tr>
+        <tr><td>Monthly Report</td><td>显示月报状态</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="assessment">6.2 Assessment Allocation 评估分配</h2>
+    <p>工作流第一步：扫描邮件/注册工单 → 解析 PSV 表格 → 分配负责人 → 发送评估邮件。</p>
+
+    <h3>方式一：扫描邮件发现任务</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">点击 <strong>Scan Emails</strong>，系统通过 Bridge Agent 扫描 Outlook 收件箱</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">自动从邮件中提取 <code>CEADU-XXXX</code> 格式的 Jira 工单号</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">已发送过评估的工单显示 <span class="badge badge-green">✓ Processed</span></div></div>
+    <div class="card card-blue">
+      <strong>管理员：</strong>扫描关键词固定为 "CEADU"<br>
+      <strong>其他用户：</strong>可在 Scan Emails 左侧输入框自定义关键词（逗号分隔，如 <code>CEADU, PSV, assessment</code>）
+    </div>
+
+    <h3>方式二：手动注册工单</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">在输入框输入 Jira 工单号（如 <code>CEADU-682</code>）</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">点击 <strong>+ Ticket</strong>，系统自动从 Jira 获取工单状态和摘要</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">注册的工单显示 <span class="badge badge-blue">REGISTERED</span> 标识，所有用户可见</div></div>
+    <div class="card card-amber">已注册工单在 Jira 状态变为 Closed/Done/Resolved 后自动隐藏。点击 ✕ 可取消注册。</div>
+
+    <h3>解析 PSV 表格 & 发送评估</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">点击任务列表中的工单，右侧显示详情</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">点击 <strong>View Parent Ticket</strong> 获取父工单信息</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">点击 <strong>Parse PSV Table</strong> 解析 PSV 附件，下方显示 Layer3 法规匹配结果</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">勾选需要的法规条目，选择收件人</div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-content">点击 <strong>Send Assessment</strong> 通过 Outlook 发送评估邮件</div></div>
+
+    <h2 id="tracking">6.3 Assessment Tracking 评估追踪</h2>
+    <p>工作流第二步：跟踪各市场各领域的 Gap 分析进度。</p>
+
+    <h3>领域状态说明</h3>
+    <table class="status-table">
+      <thead><tr><th>状态</th><th>含义</th><th>标识</th></tr></thead>
+      <tbody>
+        <tr><td>pending</td><td>等待评估</td><td><span class="badge badge-gray">灰色</span></td></tr>
+        <tr><td>evaluating</td><td>评估中（Jira 有评论）</td><td><span class="badge badge-blue">蓝色</span></td></tr>
+        <tr><td>gap_analysis</td><td>Gap 分析完成</td><td><span class="badge badge-green">绿色</span></td></tr>
+        <tr><td>summary_written</td><td>Summary 已写入 Jira</td><td><span class="badge badge-green">深绿</span></td></tr>
+        <tr><td>closed</td><td>Layer3 工单已关闭</td><td><span class="badge badge-gray">已关闭</span></td></tr>
+        <tr><td>not_applicable</td><td>不涉及</td><td><span class="badge badge-gray">虚线灰</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>操作说明</h3>
+    <ul>
+      <li><strong>点击领域 Chip</strong>：手动切换状态（pending ↔ evaluating ↔ gap_analysis）</li>
+      <li><strong>🔒 图标</strong>：手动设置的状态，自动逻辑不会覆盖（除非 Jira 有新评论）</li>
+      <li><strong>Check Now</strong>：手动触发一次检测</li>
+      <li><strong>Auto Monitor</strong>：勾选后每 30 分钟自动检查 Jira 评论变化</li>
+      <li><strong>Write Summary Comment</strong>：所有领域完成 gap_analysis 后显示此按钮，点击后自动生成结构化摘要写入 Jira</li>
+      <li><strong>Close Layer3</strong>：Summary 写入后显示此按钮，点击后自动关闭 Jira Layer3 工单</li>
+    </ul>
+
+    <div class="card card-amber">
+      <strong>手动覆盖保护：</strong>如果你手动修改了某个领域的状态，系统不会自动覆盖（除非该 Jira 工单有新评论）。
+    </div>
+
+    <h2 id="analysis">6.4 Analysis Module 分析模块</h2>
+    <p>工作流第三步：综合分析所有市场的合规状态，生成月报。</p>
+    <table>
+      <thead><tr><th>工具</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>📊 Market Overview</td><td>综合市场分析，10 个出口市场的 Layer3 合规状态总览</td></tr>
+        <tr><td>📋 All Topics Review</td><td>全部 6 个领域的 Jira 评论分析，含 AI 生成的结构化中文摘要</td></tr>
+        <tr><td>📡 OBD</td><td>OBD 领域评论分析</td></tr>
+        <tr><td>🛡️ FuSa</td><td>功能安全领域评论分析</td></tr>
+        <tr><td>🔐 Cybersecurity</td><td>网络安全领域评论分析</td></tr>
+        <tr><td>🔄 OTA</td><td>OTA 领域评论分析</td></tr>
+        <tr><td>🔒 Immobilizer</td><td>防盗领域评论分析</td></tr>
+        <tr><td>📧 Send Monthly Report</td><td>生成法规月报并创建 Outlook 草稿邮件</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Thinking Area（AI 推理过程）</h3>
+    <p>点击分析工具后，右侧显示 AI 推理过程：</p>
+    <ul>
+      <li>实时显示每个分析步骤（准备数据 → 分析中 → 生成结论）</li>
+      <li>完成后步骤变为绿色勾号，自动折叠</li>
+      <li>点击 ▼ 可展开查看详细步骤</li>
+      <li>支持 Cancel 取消、Retry 重试</li>
+    </ul>
+
+    <h3>发送月报</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">确认所有评估已完成</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">点击 <strong>Send Monthly Report</strong></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">系统读取 Excel 数据生成 HTML 邮件</div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">自动在 Outlook 中创建草稿邮件（预览状态）</div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-content">确认无误后手动点击发送</div></div>
+
+    <h2 id="wiki">6.5 Regulations Wiki 法规知识库</h2>
+    <p>收录 30+ 篇法规文档，支持两种搜索方式：</p>
+    <h3>关键词搜索（默认）</h3>
+    <p>在搜索框输入关键词（如 <code>functional safety OTA</code>），点击 <strong>Search</strong>，系统使用 BM25 算法返回最相关的结果。</p>
+    <h3>语义搜索 🔮</h3>
+    <p>输入问题（如 <code>Korea 网络安全法规要求是什么</code>），点击 <strong>Semantic Search</strong>，系统先用关键词召回候选，再用 AI 语义打分重排，理解意图效果更好。</p>
+    <table>
+      <thead><tr><th>目录</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>raw/</td><td>原始法规文档（ISO / UN-R / 国标等）</td></tr>
+        <tr><td>entities/</td><td>法规实体卡片</td></tr>
+        <tr><td>concepts/</td><td>概念定义</td></tr>
+        <tr><td>comparisons/</td><td>法规对比</td></tr>
+        <tr><td>queries/</td><td>常见问题</td></tr>
+        <tr><td>pvs/</td><td>PSV 表格文件</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="settings">6.6 Settings 设置</h2>
+    <table>
+      <thead><tr><th>功能</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>LLM Configuration</td><td>配置 AI 助手的 API Key、Base URL、Model</td></tr>
+        <tr><td>Download Bridge Agent</td><td>下载邮件代理程序 exe</td></tr>
+        <tr><td>Show Token</td><td>显示当前 Token（用于 Bridge Agent 认证）</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 7. AI Assistant -->
+    <h1 id="ai-assistant">7. AI 助手使用指南</h1>
+    <div class="card card-blue">
+      右下角 🤖 悬浮按钮，<strong>在任何页面都可以使用</strong>。点击打开对话窗口。
+    </div>
+    <h3>AI 助手能做什么？</h3>
+    <table>
+      <thead><tr><th>功能</th><th>示例</th></tr></thead>
+      <tbody>
+        <tr><td>回答法规问题</td><td>"Korea 的网络安全合规要求是什么？"</td></tr>
+        <tr><td>搜索和阅读邮件</td><td>"查看最新邮件"、"搜索 CEADU 相关邮件"</td></tr>
+        <tr><td>查看待回复邮件</td><td>"哪些邮件需要回复？"</td></tr>
+        <tr><td>搜索联系人</td><td>"查找联系人 张三"</td></tr>
+        <tr><td>昨日邮件简报</td><td>"昨天邮件"</td></tr>
+        <tr><td>知识库增强</td><td>自动关联 Wiki 法规条目，支持多轮对话</td></tr>
+      </tbody>
+    </table>
+    <h3>快捷按钮</h3>
+    <p>对话窗口提供以下快捷操作按钮：</p>
+    <ul>
+      <li><span class="badge badge-blue">Latest Emails</span> 查看最新邮件</li>
+      <li><span class="badge badge-blue">Search CEADU Emails</span> 搜索 CEADU 相关邮件</li>
+      <li><span class="badge badge-blue">Emails Needing Reply</span> 查看待回复邮件</li>
+      <li><span class="badge badge-blue">Korea Compliance</span> 查询 Korea 合规要求</li>
+      <li><span class="badge badge-blue">India OBD</span> 查询 India OBD 要求</li>
+      <li><span class="badge badge-blue">UN-R156 OTA</span> 查询 OTA 法规</li>
+    </ul>
+    <div class="card card-green"><strong>使用技巧：</strong>直接输入问题按 Enter 发送即可，AI 会自动判断你的意图。</div>
+
+    <!-- 8. Bridge Management -->
+    <h1 id="bridge-mgmt">8. Bridge Agent 管理指南</h1>
+    <h3>查看 Bridge 状态</h3>
+    <table>
+      <thead><tr><th>状态栏显示</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td>🟢 Outlook Bridge: Connected (用户名)</td><td>Bridge 正常运行</td></tr>
+        <tr><td>🔴 Outlook Bridge: Not connected</td><td>Bridge 未运行或已断开</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Bridge 断开时怎么办</h3>
+    <div class="step"><div class="step-num">1</div><div class="step-content">确认电脑已开机且未休眠</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content">打开任务管理器（Ctrl+Shift+Esc），查看是否有 <code>GRCBridgeAgent.exe</code> 进程</div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content">如果没有，双击以下路径的 exe 重新启动：<br><code>C:\Users\&lt;你的用户名&gt;\AppData\Local\GRCBridge\GRCBridgeAgent.exe</code></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content">如果提示 Token 过期：登录网页 → Settings → Show Token → 复制新 Token → 双击 exe</div></div>
+
+    <h3>更新 Bridge Agent</h3>
+    <div class="card card-green">
+      下载新版本 exe 后直接双击即可。<strong>新版本会自动停止旧版本并替换</strong>，无需手动终止进程。Token 和配置自动保留。
+    </div>
+
+    <h3>日志位置</h3>
+    <pre><code>C:\Users\&lt;你的用户名&gt;\AppData\Roaming\GRCBridge\bridge.log</code></pre>
+
+    <h3>停止 / 禁用</h3>
+    <table>
+      <thead><tr><th>操作</th><th>方法</th></tr></thead>
+      <tbody>
+        <tr><td>临时停止</td><td>任务管理器 → 找到 <code>GRCBridgeAgent.exe</code> → 结束任务</td></tr>
+        <tr><td>禁用开机自启</td><td>按 <code>Win+R</code> → 输入 <code>shell:startup</code> → 删除 <code>GRCBridgeAgent.lnk</code></td></tr>
+        <tr><td>清除所有配置</td><td>命令行运行：<code>GRCBridgeAgent.exe --forget</code></td></tr>
+      </tbody>
+    </table>
+
+    <!-- 9. FAQ -->
+    <h1 id="faq">9. 常见问题 FAQ</h1>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 网页显示 "Outlook Bridge: Not connected" 怎么办？</div>
+      <div class="faq-a">Bridge Agent 未运行。请双击 <code>C:\Users\&lt;用户名&gt;\AppData\Local\GRCBridge\GRCBridgeAgent.exe</code> 重新启动。如果提示 Token 过期，去 Settings 页面获取新 Token。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: AI 助手提示 "LLM API key not configured" 怎么办？</div>
+      <div class="faq-a">你还没有配置 LLM API Key。请去 Settings 页面，在 LLM Configuration 区域输入 API Key 并保存。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: Scan Emails 扫描不到邮件？</div>
+      <div class="faq-a">可能的原因：① Bridge Agent 未连接 → 检查顶部状态栏；② Outlook 未登录或收件箱为空；③ 搜索关键词不匹配 → 非管理员用户可自定义关键词；④ 邮件已过期（默认搜索最近 30 天）。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: Token 多久过期一次？</div>
+      <div class="faq-a">Token 有效期 7 天。过期后 Bridge Agent 会自动停止，需要重新登录网页获取新 Token 并重启 Bridge Agent。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 换了电脑怎么办？</div>
+      <div class="faq-a">在新电脑上：① 登录网页系统 → ② Settings → Download Bridge Agent (exe) 下载 → ③ 双击运行输入 Token → ④ 配置 LLM API Key。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 其他用户能看到我注册的工单吗？</div>
+      <div class="faq-a">是的。注册的工单对所有用户可见（直到 Jira 工单状态变为 Closed/Done/Resolved 后自动隐藏），团队成员可以共享任务列表。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 手动修改了评估状态，系统会自动覆盖吗？</div>
+      <div class="faq-a">不会。手动设置的状态显示 🔒 图标，自动逻辑不会覆盖，除非该 Jira 工单有新评论。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: Bridge Agent 会影响电脑性能吗？</div>
+      <div class="faq-a">不会。Bridge Agent 是轻量级程序，只在有请求时才工作（每 2 秒轮询一次），CPU 和内存占用极低。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 多个用户能同时使用吗？</div>
+      <div class="faq-a">可以。每个用户有自己的账号，独立配置。但 Bridge Agent 需要每人在自己的电脑上分别安装。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Q: 忘记密码怎么办？</div>
+      <div class="faq-a">联系管理员重置账号。系统目前不支持自助找回密码。</div>
+    </div>
+
+    <div style="margin-top:48px;padding:24px;text-align:center;color:var(--text-muted);border-top:1px solid var(--border);">
+      <p>如有其他问题，请联系系统管理员。</p>
+      <p style="font-size:12px;margin-top:8px;">G.R.C. Agent — Governance. Regulation. Compliance.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function toggleFaq(el) {
+  el.classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
+}
+
+// Sidebar active link on scroll
+var sections = document.querySelectorAll('h1[id], h2[id]');
+var navLinks = document.querySelectorAll('.sidebar nav a');
+window.addEventListener('scroll', function() {
+  var current = '';
+  sections.forEach(function(sec) {
+    if (window.scrollY >= sec.offsetTop - 100) {
+      current = sec.id;
+    }
+  });
+  navLinks.forEach(function(link) {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === '#' + current) {
+      link.classList.add('active');
+    }
+  });
+});
+</script>
+</body>
+</html>
