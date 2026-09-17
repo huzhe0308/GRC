@@ -115,6 +115,14 @@ const labels = {
   // Load data for specific views
   if (name === "assessment") {
     loadContactsList();
+    loadRegisteredTickets().then(() => {
+      // If no tasks yet, show registered ones
+      if (assessmentState.tasks.length === 0 && assessmentState.registeredTickets.length > 0) {
+        assessmentState.tasks = [...assessmentState.registeredTickets];
+        $("taskCount").textContent = assessmentState.tasks.length;
+        renderTaskList();
+      }
+    });
   }
   if (name === "gapTracking") {
     loadGapTracking();
@@ -779,6 +787,10 @@ function bindEvents() {
   // Assessment module
   $("scanEmails")?.addEventListener("click", scanEmailsForTasks);
   $("clearTasks")?.addEventListener("click", clearTasks);
+  $("registerTicketBtn")?.addEventListener("click", registerTicket);
+  $("registerTicketInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") registerTicket();
+  });
   $("viewParentTicket")?.addEventListener("click", viewParentTicket);
   $("parsePVS")?.addEventListener("click", () => {
     // Get the first PVS attachment filename
@@ -2378,7 +2390,90 @@ const assessmentState = {
   parentTicket: null,
   pvsResults: [],
   processedKeys: new Set(),
+  registeredTickets: [],
 };
+
+// Load registered tickets on page load (visible to all users if registered + not closed)
+async function loadRegisteredTickets() {
+  try {
+    const data = await api("/api/tickets/registered");
+    assessmentState.registeredTickets = data.tickets || [];
+  } catch (e) {
+    console.warn("[loadRegisteredTickets]", e);
+    assessmentState.registeredTickets = [];
+  }
+}
+
+function mergeTasksWithRegistered(emailTasks) {
+  // Merge email-scanned tasks with registered tickets, deduplicate by key
+  const seen = new Set();
+  const merged = [];
+  // Add registered tickets first
+  for (const t of assessmentState.registeredTickets) {
+    if (!seen.has(t.key)) {
+      seen.add(t.key);
+      merged.push(t);
+    }
+  }
+  // Add email-scanned tasks
+  for (const t of emailTasks) {
+    if (!seen.has(t.key)) {
+      seen.add(t.key);
+      merged.push(t);
+    }
+  }
+  return merged;
+}
+
+async function registerTicket() {
+  const input = $("registerTicketInput");
+  const ticket = input.value.trim().toUpperCase();
+  if (!ticket) {
+    toast("Please enter a ticket key (e.g. CEADU-1234)", true);
+    return;
+  }
+  if (!/^[A-Z]+-\d+$/.test(ticket)) {
+    toast("Invalid ticket format. Example: CEADU-1234", true);
+    return;
+  }
+  try {
+    const result = await api("/api/tickets/register", {
+      method: "POST",
+      body: JSON.stringify({ ticket }),
+    });
+    if (result.ok) {
+      toast(`Registered: ${ticket}` + (result.jira_summary ? ` (${result.jira_summary.substring(0,40)})` : ""));
+      input.value = "";
+      await loadRegisteredTickets();
+      // Re-merge and render
+      const merged = mergeTasksWithRegistered(assessmentState.tasks.filter(t => t.source !== "registered"));
+      assessmentState.tasks = merged;
+      $("taskCount").textContent = merged.length;
+      renderTaskList();
+    } else {
+      toast("Registration failed: " + (result.error || "unknown"), true);
+    }
+  } catch (e) {
+    toast("Registration failed: " + e.message, true);
+  }
+}
+
+async function unregisterTicket(ticketKey) {
+  try {
+    await api("/api/tickets/unregister", {
+      method: "POST",
+      body: JSON.stringify({ ticket: ticketKey }),
+    });
+    assessmentState.registeredTickets = assessmentState.registeredTickets.filter(t => t.key !== ticketKey);
+    assessmentState.tasks = assessmentState.tasks.filter(t => t.key !== ticketKey);
+    $("taskCount").textContent = assessmentState.tasks.length;
+    renderTaskList();
+    renderTaskDetail();
+    toast(`Unregistered: ${ticketKey}`);
+  } catch (e) {
+    toast("Unregister failed: " + e.message, true);
+  }
+}
 
 async function scanEmailsForTasks() {
   const button = $("scanEmails");
@@ -2386,6 +2481,9 @@ async function scanEmailsForTasks() {
   button.textContent = "Scanning...";
   
   try {
+    // Load registered tickets first (always visible)
+    await loadRegisteredTickets();
+
     // Build query with user keywords if available
     let emailUrl = "/api/emails";
     const kwInput = document.getElementById("scanKeywords");
@@ -2449,42 +2547,17 @@ async function scanEmailsForTasks() {
       }
     }
     
-    assessmentState.tasks = uniqueTasks;
-    $("taskCount").textContent = uniqueTasks.length;
+    // Merge with registered tickets (registered tickets always visible)
+    assessmentState.tasks = mergeTasksWithRegistered(uniqueTasks);
+    $("taskCount").textContent = assessmentState.tasks.length;
     renderTaskList();
     
-    if (uniqueTasks.length > 0) {
-      toast(`Found ${uniqueTasks.length} assessment tasks`);
-    } else if (emails.length > 0) {
-      // If no tasks found but we have emails, show all CEADU emails as potential tasks
-      for (const email of emails) {
-        const matches = email.subject?.match(ticketRegex) || [];
-        for (const ticketKey of matches) {
-          const upperKey = ticketKey.toUpperCase();
-          if (!seen.has(upperKey)) {
-            seen.add(upperKey);
-            uniqueTasks.push({
-              key: upperKey,
-              subject: email.subject,
-              sender: email.sender,
-              received: email.received,
-              body: email.body,
-              entryid: email.entryid
-            });
-          }
-        }
-      }
-      assessmentState.tasks = uniqueTasks;
-      $("taskCount").textContent = uniqueTasks.length;
-      renderTaskList();
-      
-      if (uniqueTasks.length > 0) {
-        toast(`Found ${uniqueTasks.length}CEADU emails (all shown)`);
-      } else {
-        toast("No assessment tasks found");
-      }
+    const emailTaskCount = uniqueTasks.length;
+    const regCount = assessmentState.registeredTickets.length;
+    if (assessmentState.tasks.length > 0) {
+      toast(`Found ${assessmentState.tasks.length} tasks (${regCount} registered, ${emailTaskCount} from emails)`);
     } else {
-      toast("No CEADU-related emails found");
+      toast("No tasks found");
     }
   } catch (err) {
     toast("Scan failed：" + err.message, true);
@@ -2495,16 +2568,17 @@ async function scanEmailsForTasks() {
 }
 
 function clearTasks() {
-  assessmentState.tasks = [];
+  // Keep registered tickets, clear email-scanned tasks
+  assessmentState.tasks = assessmentState.tasks.filter(t => t.source === "registered");
   assessmentState.selectedTask = null;
   assessmentState.parentTicket = null;
   assessmentState.pvsResults = [];
-  $("taskCount").textContent = "0";
+  $("taskCount").textContent = assessmentState.tasks.length;
   renderTaskList();
   renderTaskDetail();
   renderParentInfo();
   renderPVSResults();
-  toast("Task list cleared");
+  toast("Email tasks cleared (registered tickets kept)");
 }
 
 function renderTaskList() {
@@ -2512,17 +2586,18 @@ function renderTaskList() {
   const tasks = assessmentState.tasks;
   
   if (!tasks.length) {
-    container.innerHTML = '<div class="empty-block">Click "Scan Emails" to detect tasks</div>';
+    container.innerHTML = '<div class="empty-block">Click "Scan Emails" or "Register" to add tasks</div>';
     return;
   }
   
   container.innerHTML = tasks.map((task, idx) => {
     const processed = assessmentState.processedKeys.has(task.key);
+    const isRegistered = task.source === "registered";
     return `
     <div class="task-item ${assessmentState.selectedTask?.key === task.key ? 'selected' : ''} ${processed ? 'task-item-processed' : ''}" data-idx="${idx}">
       <div class="task-header">
-        <span class="task-key">${task.key}</span>
-        <span class="task-actions">${processed ? '<span class="task-processed-badge">✓ Processed</span>' : ''}<span class="task-time">${task.received?.substring(0, 10) || ''}</span></span>
+        <span class="task-key">${task.key} ${isRegistered ? '<span style="font-size:10px;color:#2563eb;background:#e0e7ff;padding:1px 5px;border-radius:4px;margin-left:4px;">REGISTERED</span>' : ''}</span>
+        <span class="task-actions">${processed ? '<span class="task-processed-badge">✓ Processed</span>' : ''}${isRegistered ? '<button class="unregister-btn" data-key="' + task.key + '" style="font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0 4px;" title="Unregister">✕</button>' : ''}<span class="task-time">${task.received?.substring(0, 10) || ''}</span></span>
       </div>
       <p class="task-subject">${escapeHtml(task.subject?.substring(0, 60) || 'No subject')}</p>
       <p class="task-sender">From: ${escapeHtml(task.sender || 'Unknown')}</p>
@@ -2538,6 +2613,12 @@ function renderTaskList() {
       assessmentState.pvsResults = [];
       renderTaskList();
       renderTaskDetail();
+    });
+  });
+  container.querySelectorAll(".unregister-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      unregisterTicket(btn.dataset.key);
     });
   });
 }
