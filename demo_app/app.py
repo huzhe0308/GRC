@@ -281,11 +281,15 @@ def fetch_emails(user_keywords: list = None, user_lookback: int = None) -> dict:
         mail_cfg = config.get('mail', {})
 
         # Determine keywords and lookback: user-provided > config.yaml default
-        keywords = user_keywords or mail_cfg.get('subject_contains', []) or ["CEADU"]
+        # Empty list means no keyword filter (scan all emails)
+        if user_keywords is not None:
+            keywords = user_keywords
+        else:
+            keywords = mail_cfg.get('subject_contains', [])
         if isinstance(keywords, str):
             keywords = [keywords]
         days_back = int(user_lookback or mail_cfg.get('lookback_days', 30) or 30)
-        max_emails = int(mail_cfg.get('max_emails', 10) or 10)
+        max_emails = int(mail_cfg.get('max_emails', 50) or 50)
 
         # On cloud: route through bridge agent (Outlook COM is not available on Railway)
         is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
