@@ -3507,9 +3507,9 @@ fetch("/api/auth/me", { headers: authHeaders() })
       currentUserInfo = data.user;
       const titleEl = document.querySelector("p.eyebrow");
       if (titleEl) titleEl.textContent = `G.R.C. Agent — ${data.user.display_name || data.user.username}`;
-      // Show keyword input for non-admin users
+      // Show keyword input for all users (admin previously used config.yaml defaults)
       const kwInput = document.getElementById("scanKeywords");
-      if (kwInput && data.user.username !== "admin") {
+      if (kwInput) {
         kwInput.style.display = "inline-block";
         // Load saved keywords from settings
         api("/api/settings").then(settings => {
