@@ -246,14 +246,10 @@ async def http_handler(request: web.Request) -> web.Response:
                 raw_days = qs.get("days", [""])[0]
                 user_lookback = int(raw_days) if raw_days.isdigit() else None
 
-                # For admin without explicit keywords, use config defaults (None = config.yaml)
-                is_admin = _cu and _cu.get("username") == "admin"
-                if is_admin and not user_keywords:
-                    user_keywords = None  # let fetch_emails use config.yaml
-                elif not is_admin and not user_keywords:
-                    # Non-admin: check user settings for saved keywords
+                # If no explicit keywords in query, check user settings (all users)
+                if not user_keywords and _cu:
                     try:
-                        settings = get_user_settings(_cu["id"]) if _cu else {}
+                        settings = get_user_settings(_cu["id"])
                         saved_kw = settings.get("scan_keywords", "")
                         if saved_kw:
                             user_keywords = [k.strip() for k in saved_kw.split(",") if k.strip()]
@@ -262,8 +258,6 @@ async def http_handler(request: web.Request) -> web.Response:
                             user_lookback = int(saved_days)
                     except Exception:
                         pass
-                    if not user_keywords:
-                        user_keywords = ["CEADU"]  # fallback for non-admin
 
                 _kw = user_keywords
                 _lb = user_lookback
