@@ -599,7 +599,7 @@ def cmd_scan_emails(params: dict) -> dict:
                 continue
             subject_lower = subject.lower()
             body_lower = body.lower()
-            if keywords_folded and not all(kw in subject_lower or kw in body_lower for kw in keywords_folded):
+            if keywords_folded and not any(kw in subject_lower or kw in body_lower for kw in keywords_folded):
                 continue
 
             attachments = []
