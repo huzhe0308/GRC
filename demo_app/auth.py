@@ -20,7 +20,7 @@ from typing import Any
 APP_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = APP_ROOT / "runtime" / "users.sqlite"
 
-SESSION_TTL = 86400 * 7
+SESSION_TTL = 86400 * 365 * 100  # effectively permanent (100 years)
 
 TURSO_URL = os.environ.get("TURSO_URL", "")
 TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "")
@@ -274,10 +274,14 @@ def verify_token(token: str) -> dict | None:
             conn.close()
             return None
         if time.time() > row["expires_at"]:
-            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            # Session expired — but since TTL is 100 years, this rarely happens.
+            # Instead of deleting, extend the session so tokens are effectively permanent.
+            now_ts = time.time()
+            conn.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (now_ts + SESSION_TTL, token))
             conn.commit()
             conn.close()
-            return None
+            # Re-verify with the extended session
+            return verify_token(token)
         user = conn.execute("SELECT * FROM users WHERE id = ?", (row["user_id"],)).fetchone()
         conn.close()
         if not user:
