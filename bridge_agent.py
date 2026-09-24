@@ -755,10 +755,6 @@ def main():
 
     # Silent mode: read token from file, no interaction
     if args.silent:
-        # Prevent multiple silent instances
-        if is_already_running():
-            log("Another Bridge Agent instance is already running. Exiting.", silent=True)
-            return
         token = args.token or load_token()
         api_url = (args.api or load_api_url()).rstrip("/")
         if not token:
