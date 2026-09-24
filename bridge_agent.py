@@ -702,7 +702,9 @@ def poll_loop(api_url: str, token: str, poll_interval: float = 2.0, silent: bool
                 if not silent:
                     print("\nYour token has expired. Please get a new token from the web app.", flush=True)
                     input("Press Enter to exit...")
-                break
+                # In silent mode, raise SystemExit to break out of the watchdog loop
+                # (otherwise the while True restarts poll_loop with the same expired token)
+                raise SystemExit(1)
             elif e.code in (502, 503, 504):
                 # Railway deployment/restart — wait and retry, don't count as error
                 log(f"Server temporarily unavailable ({e.code}). Retrying...", silent=silent)
@@ -753,6 +755,10 @@ def main():
 
     # Silent mode: read token from file, no interaction
     if args.silent:
+        # Prevent multiple silent instances
+        if is_already_running():
+            log("Another Bridge Agent instance is already running. Exiting.", silent=True)
+            return
         token = args.token or load_token()
         api_url = (args.api or load_api_url()).rstrip("/")
         if not token:
@@ -763,6 +769,7 @@ def main():
             try:
                 poll_loop(api_url, token, poll_interval=args.interval, silent=True)
             except SystemExit:
+                # Token expired (401) — don't restart, exit completely
                 raise
             except Exception as e:
                 log(f"Fatal error: {e}. Restarting in 10s...", silent=True)
