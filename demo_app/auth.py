@@ -57,12 +57,17 @@ CREATE TABLE IF NOT EXISTS user_settings (
 
 
 class _Row(dict):
-    """Dict that supports attribute access, mimicking sqlite3.Row."""
+    """Dict that supports both attribute access and integer index access, mimicking sqlite3.Row."""
     def __getattr__(self, key):
         try:
             return self[key]
         except KeyError:
             raise AttributeError(key)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
 
 
 class _TursoConn:
@@ -86,6 +91,15 @@ class _TursoConn:
 
     def close(self) -> None:
         pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.commit()
+        self.close()
+        return False
 
     @staticmethod
     def _convert_arg(val):
