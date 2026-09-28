@@ -15,7 +15,7 @@ def download_jira_attachments():
     """下载PSV/PVS附件到raw目录"""
     
     # 目标目录
-    raw_dir = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
+    raw_dir = Path(__file__).resolve().parent.parent / "wiki" / "raw" / "pvs"
     raw_dir.mkdir(parents=True, exist_ok=True)
     
     # Jira配置
