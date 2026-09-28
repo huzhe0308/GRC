@@ -28,6 +28,24 @@ DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 WIKI_DIR = APP_ROOT / "wiki"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 LAYER3_EXCEL_PATH = APP_ROOT / "runtime" / "Export_Markets_Layer3_Comparison.xlsx"
+
+
+def _get_db():
+    """Get database connection — Turso (cloud) or SQLite (local).
+
+    On Railway (TURSO_URL set), returns a _TursoConn that talks to the
+    same Turso database used by auth.py, so all tables (gap tracking,
+    registered tickets, etc.) persist across container restarts.
+
+    Locally, returns a sqlite3 connection to runtime/state.sqlite.
+    """
+    _turso_url = os.environ.get("TURSO_URL", "")
+    if _turso_url:
+        from auth import _TursoConn
+        return _TursoConn()
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
 MONTHLY_REPORT_DEFAULT_TO = [
     "kai.kunze@volkswagen-tech.com", "yi.yu@volkswagen-tech.com", "dawei.chen@cariad-technology.cn",
     "alvaro.huascar.hekler.merino@volkswagen-tech.com", "shuo.he@volkswagen-tech.com", "yumin.ren@volkswagen-tech.com",
@@ -148,7 +166,7 @@ def list_runs(limit: int = 20) -> list[dict]:
     if not DB_PATH.exists():
         return []
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             rows = conn.execute(
                 "select run_id, started_at, finished_at, status, report_path, error from runs order by started_at desc limit ?",
                 (limit,),
@@ -1400,6 +1418,11 @@ def _item_badge(category: str) -> str:
 
 def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc: list[str] = None) -> dict:
     """Read Excel and generate monthly report HTML email body."""
+    if not LAYER3_EXCEL_PATH.exists():
+        return {
+            "ok": False,
+            "error": "Excel file not found. Please upload Export_Markets_Layer3_Comparison.xlsx via Settings page."
+        }
     try:
         import openpyxl
         wb = openpyxl.load_workbook(str(LAYER3_EXCEL_PATH), read_only=True, data_only=True)
@@ -2408,7 +2431,7 @@ def send_assessment_email(data: dict) -> dict:
             _ensure_gap_table()
             now = time.strftime("%Y-%m-%d %H:%M:%S")
             recipients_str = ", ".join(recipient_names)
-            with sqlite3.connect(DB_PATH) as conn:
+            with _get_db() as conn:
                 row = conn.execute(
                     "SELECT sent_at FROM assessment_sent WHERE ticket = ?", (task_key,)
                 ).fetchone()
@@ -2514,7 +2537,7 @@ def _create_tracking_from_assessment(parent_key: str, regulations: list) -> dict
             continue
 
         # 检查是否已存在条目（且状态不是pending）
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             existing = conn.execute(
                 "SELECT status FROM gap_market_tracking WHERE market=? AND topic=?",
                 (market_name, topic_key),
@@ -2527,7 +2550,7 @@ def _create_tracking_from_assessment(parent_key: str, regulations: list) -> dict
         current_comment_count = _get_ticket_comment_count(ticket)
 
         # 创建或更新为pending状态
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
                 VALUES (?, ?, ?, 'pending', 0, '', datetime('now','localtime'), 0, ?)
@@ -2553,7 +2576,7 @@ def get_assessments_sent() -> dict:
     """Return tickets for which assessment request emails have already been sent"""
     try:
         _ensure_gap_table()
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             rows = conn.execute(
                 "SELECT ticket, parent_key, sent_at, recipients FROM assessment_sent ORDER BY sent_at DESC"
             ).fetchall()
@@ -3117,7 +3140,7 @@ def _log_inspection(source: str, tickets_checked: int, changed: int, details: st
     """Record a periodic inspection run (auto monitor or manual check)."""
     try:
         _ensure_gap_table()
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute(
                 "INSERT INTO gap_inspection_log (run_at, source, tickets_checked, changed, details) VALUES (?,?,?,?,?)",
                 (time.strftime("%Y-%m-%d %H:%M:%S"), source, tickets_checked, changed, details),
@@ -3131,7 +3154,7 @@ def get_last_inspection() -> dict:
     """Return the most recent inspection log entry."""
     try:
         _ensure_gap_table()
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             row = conn.execute(
                 "SELECT run_at, source, tickets_checked, changed FROM gap_inspection_log ORDER BY id DESC LIMIT 1"
             ).fetchone()
@@ -3401,7 +3424,7 @@ def _market_topic_ticket(market: dict, topic: str) -> str | None:
 
 
 def _ensure_gap_table() -> None:
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gap_market_tracking (
                 market TEXT NOT NULL,
@@ -3424,19 +3447,19 @@ def _ensure_gap_table() -> None:
         """)
         try:
             conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN gap_summary TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         try:
             conn.execute("ALTER TABLE gap_layer3_closed ADD COLUMN gap_summary TEXT DEFAULT ''")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         try:
             conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN manual_override INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         try:
             conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN manual_comment_count INTEGER DEFAULT -1")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         conn.execute("""
             CREATE TABLE IF NOT EXISTS gap_inspection_log (
@@ -3486,7 +3509,7 @@ def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
     except Exception:
         pass
 
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         conn.execute("""
             INSERT INTO registered_tickets (ticket_key, registered_by, registered_at, jira_status, jira_summary)
             VALUES (?, ?, ?, ?, ?)
@@ -3501,7 +3524,7 @@ def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
 def unregister_ticket(ticket_key: str) -> dict:
     """Remove a registered ticket."""
     ticket_key = ticket_key.strip().upper()
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         conn.execute("DELETE FROM registered_tickets WHERE ticket_key = ?", (ticket_key,))
     return {"ok": True}
 
@@ -3509,7 +3532,7 @@ def unregister_ticket(ticket_key: str) -> dict:
 def get_registered_tickets() -> dict:
     """Get all registered tickets that are not closed (visible to all users)."""
     _ensure_gap_table()
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         rows = conn.execute(
             "SELECT ticket_key, registered_by, registered_at, jira_status, jira_summary "
             "FROM registered_tickets ORDER BY registered_at DESC"
@@ -3539,7 +3562,7 @@ def _mark_market_topic_completed(market: str, topic: str, ticket: str = "", comm
     """Mark one market+topic as completed (called after successful topic_comments run)"""
     _ensure_gap_table()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         conn.execute("""
             INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, updated_at)
             VALUES (?, ?, ?, 'completed', ?, ?)
@@ -3555,7 +3578,7 @@ def _mark_market_topic_gap_analysis(market: str, topic: str, ticket: str = "", c
     """Mark one market+topic as gap_analysis - gap analysis sufficient to give conclusion"""
     _ensure_gap_table()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         conn.execute("""
             INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at)
             VALUES (?, ?, ?, 'gap_analysis', ?, ?, ?)
@@ -3570,7 +3593,7 @@ def _mark_market_topic_gap_analysis(market: str, topic: str, ticket: str = "", c
 
 def _mark_market_topic_pending(market: str, topic: str, manual_count: int = -1) -> None:
     _ensure_gap_table()
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         existing = conn.execute(
             "SELECT manual_override, manual_comment_count FROM gap_market_tracking WHERE market=? AND topic=?",
             (market, topic),
@@ -3603,7 +3626,7 @@ def _auto_detect_na(auto: bool = True) -> None:
     _ensure_gap_table()
     marked = 0
     try:
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             rows = conn.execute(
                 "SELECT market, topic, ticket, status, manual_override, manual_comment_count FROM gap_market_tracking WHERE status='pending'"
             ).fetchall()
@@ -3625,7 +3648,7 @@ def _auto_detect_na(auto: bool = True) -> None:
                 print(f"[gap-auto-NA] auto-NA: {market_name}/{topic} (cc={comment_count}, tstatus={tstatus})")
         if not pending:
             return
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             for market_name, topic, ticket in pending:
                 cur = conn.execute(
                     "SELECT 1 FROM gap_market_tracking WHERE market=? AND topic=?",
@@ -3656,7 +3679,7 @@ def _auto_promote_evaluating() -> None:
     """
     try:
         _ensure_gap_table()
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             rows = conn.execute(
                 "SELECT market, topic, ticket, status, manual_override, manual_comment_count FROM gap_market_tracking WHERE status='evaluating'"
             ).fetchall()
@@ -3704,7 +3727,7 @@ def _auto_promote_evaluating() -> None:
                 if days_since > 10:
                     auto_promote = True
             if auto_promote:
-                with sqlite3.connect(DB_PATH) as conn:
+                with _get_db() as conn:
                     conn.execute(
                         "UPDATE gap_market_tracking SET status='gap_analysis', updated_at=datetime('now','localtime') WHERE market=? AND topic=?",
                         (market_name, topic),
@@ -3742,7 +3765,7 @@ def gap_tracking_status(auto_detect_na: bool = True) -> dict:
             _ticket_info_cache[tkey] = _fetch_ticket_info(tkey)
         return _ticket_info_cache[tkey]
 
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         rows = conn.execute(
             "SELECT market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count FROM gap_market_tracking"
         ).fetchall()
@@ -3905,7 +3928,7 @@ def gap_tracking_set_status(market: str, topic: str, status: str, gap_summary: s
     if status == "pending":
         _mark_market_topic_pending(market, topic, manual_count=manual_count)
     elif status == "evaluating":
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
                 VALUES (?, ?, ?, 'evaluating', 0, '', ?, 1, ?)
@@ -3917,7 +3940,7 @@ def gap_tracking_set_status(market: str, topic: str, status: str, gap_summary: s
                     manual_comment_count=excluded.manual_comment_count
             """, (market, topic, ticket, now, manual_count))
     elif status == "gap_analysis":
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
                 VALUES (?, ?, ?, 'gap_analysis', 0, ?, ?, 1, ?)
@@ -3930,7 +3953,7 @@ def gap_tracking_set_status(market: str, topic: str, status: str, gap_summary: s
                     manual_comment_count=excluded.manual_comment_count
             """, (market, topic, ticket, gap_summary, now, manual_count))
     elif status == "closed":
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
                 VALUES (?, ?, ?, 'closed', 0, ?, ?, 1, ?)
@@ -3971,7 +3994,7 @@ def gap_tracking_reset(market: str, topic: str) -> dict:
 def _build_market_summary_comment(market: str) -> str:
     """Build Summary Comment body from all gap_analysis topics of a market"""
     _ensure_gap_table()
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         rows = conn.execute(
             "SELECT topic, status, gap_summary, ticket FROM gap_market_tracking WHERE market=?",
             (market,),
@@ -4057,7 +4080,7 @@ def write_summary_comment(market: str) -> dict:
         return {"ok": False, "error": err_msg, "ticket": key}
 
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    with sqlite3.connect(DB_PATH) as conn:
+    with _get_db() as conn:
         gap_summary = comment_body[:500]
         conn.execute("""
             INSERT OR REPLACE INTO gap_layer3_closed (market, ticket, closed_at, gap_summary)
@@ -4092,7 +4115,7 @@ def close_layer3_ticket(market: str) -> dict:
     current_status = (issue_data.get("fields", {}).get("status", {}).get("name", "") or "").lower()
     if "done" in current_status or "closed" in current_status:
         now = time.strftime("%Y-%m-%d %H:%M:%S")
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO gap_layer3_closed (market, ticket, closed_at) VALUES (?, ?, ?)
             """, (market, key, now))
@@ -4115,7 +4138,7 @@ def close_layer3_ticket(market: str) -> dict:
     result = _jira_post(f"/rest/api/2/issue/{key}/transitions", payload)
     if result is None:
         now = time.strftime("%Y-%m-%d %H:%M:%S")
-        with sqlite3.connect(DB_PATH) as conn:
+        with _get_db() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO gap_layer3_closed (market, ticket, closed_at) VALUES (?, ?, ?)
             """, (market, key, now))
@@ -4512,7 +4535,7 @@ def build_topic_comments_report(topic: str = "") -> dict:
                 label_status = "not_applicable" if status == "not_applicable" else "gap_analysis"
                 now = time.strftime("%Y-%m-%d %H:%M:%S")
                 current_count = row.get("comment_count", 0)
-                with sqlite3.connect(DB_PATH) as conn:
+                with _get_db() as conn:
                     existing = conn.execute(
                         "SELECT manual_override, manual_comment_count FROM gap_market_tracking WHERE market=? AND topic=?",
                         (market_name, t),
@@ -4532,7 +4555,7 @@ def build_topic_comments_report(topic: str = "") -> dict:
                 _ensure_gap_table()
                 now = time.strftime("%Y-%m-%d %H:%M:%S")
                 current_count = row.get("comment_count", 0)
-                with sqlite3.connect(DB_PATH) as conn:
+                with _get_db() as conn:
                     existing = conn.execute(
                         "SELECT manual_override, manual_comment_count FROM gap_market_tracking WHERE market=? AND topic=?",
                         (market_name, t),
