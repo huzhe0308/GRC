@@ -1482,34 +1482,25 @@ function renderGapTracking(data) {
     const status = chip.dataset.status || "pending";
     const ticket = chip.dataset.ticket || "";
     if (!market || !topic) return;
-    // Left-click: open Jira ticket
     chip.addEventListener("click", function (ev) {
       ev.stopPropagation();
-      if (ticket) {
-        window.open("https://devstack.vgc.com.cn/jira/browse/" + encodeURIComponent(ticket), "_blank");
+      ev.preventDefault();
+      if (status === "not_applicable") {
+        if (ticket) window.open("https://devstack.vgc.com.cn/jira/browse/" + encodeURIComponent(ticket), "_blank");
+        return;
+      }
+      if (status === "gap_analysis" || status === "completed") {
+        gapReset(market, topic);
+      } else {
+        const next = getNextStatus(status);
+        gapSetStatus(market, topic, next);
       }
     });
-    // Right-click: cycle status (pending->evaluating->gap_analysis, gap_analysis->reset to pending)
     chip.addEventListener("contextmenu", function (ev) {
       ev.stopPropagation();
       ev.preventDefault();
-      if (status === "gap_analysis") {
-        if (confirm("" + market + " / " + label + "」reset to pending?")) {
-          gapReset(market, topic);
-        }
-      } else if (status === "completed") {
-        if (confirm("" + market + " / " + label + "」reset to pending?")) {
-          gapReset(market, topic);
-        }
-      } else {
-        const next = getNextStatus(status);
-        let msg = "" + market + " / " + label + " mark as " + (next === "gap_analysis" ? "Gap analysis done (close comments)" : "Evaluating") + "?";
-        if (next === "gap_analysis" && ticket) {
-          msg += "\n\nNote: verify comments for " + ticket + " and finish Gap summary";
-        }
-        if (confirm(msg)) {
-          gapSetStatus(market, topic, next);
-        }
+      if (ticket) {
+        window.open("https://devstack.vgc.com.cn/jira/browse/" + encodeURIComponent(ticket), "_blank");
       }
     });
   });
@@ -1543,10 +1534,9 @@ async function gapSetStatus(market, topic, status) {
 }
 
 async function gapReset(market, topic) {
-  if (!confirm("Reset " + market + " / " + topic + " to pending?")) return;
   try {
     await api("/api/gap-tracking/reset", { method: "POST", body: JSON.stringify({ market, topic }) });
-    toast("Reset successfully: " + market + " / " + topic);
+    toast("Reset: " + market + " / " + topic);
     loadGapTracking();
   } catch (err) {
     toast("Reset failed: " + err.message, true);
