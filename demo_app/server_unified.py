@@ -404,6 +404,33 @@ async def http_handler(request: web.Request) -> web.Response:
             if path.startswith("/api/analysis/"):
                 _cu = current_user
                 action = path.split("/api/analysis/")[1]
+                if body and body.get("_stream"):
+                    resp = web.StreamResponse(status=200, headers={
+                        "Content-Type": "text/event-stream; charset=utf-8",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "X-Accel-Buffering": "no",
+                    })
+                    await resp.prepare(request)
+                    def _emit(event_type, data):
+                        payload = json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else data
+                        msg = f"event: {event_type}\ndata: {payload}\n\n"
+                        resp.write(msg.encode("utf-8"))
+                    def _stream_run():
+                        _thread_local.current_user = _cu
+                        try:
+                            _emit("progress", {"status": "step", "step": "prepare", "message": f"Preparing {action}..."})
+                            result = run_analysis_action(action, body)
+                            if "error" in result:
+                                _emit("progress", {"status": "failed", "message": result["error"]})
+                            else:
+                                _emit("progress", {"status": "step", "step": "rendering", "message": "Rendering results..."})
+                                _emit("done", result)
+                        except Exception as e:
+                            _emit("progress", {"status": "failed", "message": str(e)})
+                    await asyncio.to_thread(_stream_run)
+                    await resp.write_eof()
+                    return resp
                 def _analysis():
                     _thread_local.current_user = _cu
                     return run_analysis_action(action, body)
