@@ -70,6 +70,11 @@ def log(msg: str, silent: bool = False) -> None:
         print(line, flush=True)
     try:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        if LOG_FILE.exists() and LOG_FILE.stat().st_size > 2 * 1024 * 1024:
+            old = LOG_FILE.with_suffix(".log.bak")
+            if old.exists():
+                old.unlink()
+            LOG_FILE.rename(old)
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
     except Exception:
@@ -134,13 +139,19 @@ def kill_running_instances() -> None:
         import subprocess
         current_pid = os.getpid()
         result = subprocess.run(
-            ["taskkill", "/IM", "GRCBridgeAgent.exe", "/F"],
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='GRCBridgeAgent.exe'\" | "
+             "Where-Object { $_.ProcessId -ne " + str(current_pid) + " } | "
+             "Select-Object -ExpandProperty ProcessId"],
             capture_output=True, text=True, timeout=10,
         )
-        # taskkill kills ALL instances including current one, but we're still
-        # running because taskkill returns before the process fully exits.
-        # We need to restart ourselves if we were killed.
-        # Actually, let's use a safer approach: kill by PID, excluding current.
+        pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+        for pid in pids:
+            try:
+                subprocess.run(["taskkill", "/PID", pid, "/F"],
+                               capture_output=True, timeout=5)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -250,17 +261,25 @@ def remove_autostart() -> None:
         pass
 
 
+_outlook_app = None
+_outlook_ns = None
+
 def get_outlook():
-    """Get Outlook COM application object."""
-    import win32com.client
-    return win32com.client.Dispatch("Outlook.Application")
+    """Get Outlook COM application object (cached singleton)."""
+    global _outlook_app
+    if _outlook_app is None:
+        import win32com.client
+        _outlook_app = win32com.client.Dispatch("Outlook.Application")
+    return _outlook_app
 
 
 def get_namespace():
-    """Get MAPI namespace."""
-    outlook = get_outlook()
-    ns = outlook.GetNamespace("MAPI")
-    return outlook, ns
+    """Get MAPI namespace (cached)."""
+    global _outlook_app, _outlook_ns
+    if _outlook_ns is None:
+        outlook = get_outlook()
+        _outlook_ns = outlook.GetNamespace("MAPI")
+    return _outlook_app, _outlook_ns
 
 
 def get_inbox():
@@ -594,7 +613,7 @@ def cmd_scan_emails(params: dict) -> dict:
             received = datetime(rt.year, rt.month, rt.day, rt.hour, rt.minute, rt.second) if hasattr(rt, 'year') else None
 
             if received and cutoff and received < cutoff:
-                continue
+                break
             if sender_filter and sender_filter not in sender_name.lower() and sender_filter not in sender_email.lower():
                 continue
             subject_lower = subject.lower()
