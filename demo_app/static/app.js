@@ -595,37 +595,6 @@ document.getElementById("saveLlmConfig")?.addEventListener("click", async () => 
   }
 });
 
-// Excel upload for monthly report
-document.getElementById("uploadExcelBtn")?.addEventListener("click", async () => {
-  const fileInput = document.getElementById("excelFileInput");
-  const statusEl = document.getElementById("excelUploadStatus");
-  if (!fileInput.files.length) {
-    showToast("Please select a file first");
-    return;
-  }
-  const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
-  statusEl.textContent = "Uploading...";
-  try {
-    const resp = await fetch("/api/upload/excel", {
-      method: "POST",
-      headers: authHeaders(),
-      body: formData,
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      statusEl.textContent = "Uploaded: " + data.filename + " (" + data.size + " bytes)";
-      showToast("Excel uploaded successfully");
-    } else {
-      statusEl.textContent = "Failed: " + (data.error || "unknown");
-      showToast("Upload failed: " + (data.error || ""), true);
-    }
-  } catch (e) {
-    statusEl.textContent = "Error: " + e.message;
-    showToast("Upload failed: " + e.message, true);
-  }
-});
-
 // Load settings when switching to settings view
 const origSwitchView = switchView;
 switchView = function(view) {
