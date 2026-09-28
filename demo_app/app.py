@@ -3918,47 +3918,50 @@ def gap_tracking_set_status(market: str, topic: str, status: str, gap_summary: s
         return {"ok": False, "error": f"Unknown status: {status}"}
     ticket = _market_topic_ticket(m, topic) or ""
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-    manual_count = _get_ticket_comment_count(ticket)
-    if status == "pending":
-        _mark_market_topic_pending(market, topic, manual_count=manual_count)
-    elif status == "evaluating":
-        with _get_db() as conn:
+    with _get_db() as conn:
+        if status == "pending":
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
-                VALUES (?, ?, ?, 'evaluating', 0, '', ?, 1, ?)
+                VALUES (?, ?, ?, 'pending', 0, '', ?, 1, -1)
+                ON CONFLICT(market, topic) DO UPDATE SET
+                    status='pending', ticket=excluded.ticket, comments_total=0, gap_summary='',
+                    updated_at=excluded.updated_at, manual_override=1, manual_comment_count=-1
+            """, (market, topic, ticket, now))
+        elif status == "evaluating":
+            conn.execute("""
+                INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
+                VALUES (?, ?, ?, 'evaluating', 0, '', ?, 1, -1)
                 ON CONFLICT(market, topic) DO UPDATE SET
                     ticket=excluded.ticket,
                     status='evaluating',
                     updated_at=excluded.updated_at,
                     manual_override=1,
-                    manual_comment_count=excluded.manual_comment_count
-            """, (market, topic, ticket, now, manual_count))
-    elif status == "gap_analysis":
-        with _get_db() as conn:
+                    manual_comment_count=-1
+            """, (market, topic, ticket, now))
+        elif status == "gap_analysis":
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
-                VALUES (?, ?, ?, 'gap_analysis', 0, ?, ?, 1, ?)
+                VALUES (?, ?, ?, 'gap_analysis', 0, ?, ?, 1, -1)
                 ON CONFLICT(market, topic) DO UPDATE SET
                     ticket=excluded.ticket,
                     status='gap_analysis',
                     gap_summary=excluded.gap_summary,
                     updated_at=excluded.updated_at,
                     manual_override=1,
-                    manual_comment_count=excluded.manual_comment_count
-            """, (market, topic, ticket, gap_summary, now, manual_count))
-    elif status == "closed":
-        with _get_db() as conn:
+                    manual_comment_count=-1
+            """, (market, topic, ticket, gap_summary, now))
+        elif status == "closed":
             conn.execute("""
                 INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
-                VALUES (?, ?, ?, 'closed', 0, ?, ?, 1, ?)
+                VALUES (?, ?, ?, 'closed', 0, ?, ?, 1, -1)
                 ON CONFLICT(market, topic) DO UPDATE SET
                     ticket=excluded.ticket,
                     status='closed',
                     gap_summary=excluded.gap_summary,
                     updated_at=excluded.updated_at,
                     manual_override=1,
-                    manual_comment_count=excluded.manual_comment_count
-            """, (market, topic, ticket, gap_summary, now, manual_count))
+                    manual_comment_count=-1
+            """, (market, topic, ticket, gap_summary, now))
     return {"ok": True, "market": market, "topic": topic, "ticket": ticket, "status": status}
 
 
@@ -3980,8 +3983,15 @@ def gap_tracking_reset(market: str, topic: str) -> dict:
     _ensure_gap_table()
     m = next((x for x in MARKETS if x["name"] == market), None)
     ticket = _market_topic_ticket(m, topic) if m else ""
-    manual_count = _get_ticket_comment_count(ticket)
-    _mark_market_topic_pending(market, topic, manual_count=manual_count)
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    with _get_db() as conn:
+        conn.execute("""
+            INSERT INTO gap_market_tracking (market, topic, ticket, status, comments_total, gap_summary, updated_at, manual_override, manual_comment_count)
+            VALUES (?, ?, ?, 'pending', 0, '', ?, 1, -1)
+            ON CONFLICT(market, topic) DO UPDATE SET
+                status='pending', ticket=excluded.ticket, comments_total=0, gap_summary='',
+                updated_at=excluded.updated_at, manual_override=1, manual_comment_count=-1
+        """, (market, topic, ticket, now))
     return {"ok": True, "market": market, "topic": topic, "status": "pending"}
 
 
