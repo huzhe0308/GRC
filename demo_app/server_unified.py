@@ -270,6 +270,22 @@ async def http_handler(request: web.Request) -> web.Response:
         
         # POST routes
         if method == "POST":
+            # Multipart file upload (don't parse as JSON)
+            if path == "/api/upload/excel":
+                from app import LAYER3_EXCEL_PATH
+                reader = await request.multipart()
+                file_part = await reader.next()
+                if not file_part or not file_part.filename:
+                    return web.json_response({"ok": False, "error": "No file uploaded"}, status=400)
+                LAYER3_EXCEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+                with open(LAYER3_EXCEL_PATH, "wb") as f:
+                    while True:
+                        chunk = await file_part.read_chunk(size=8192)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                return web.json_response({"ok": True, "filename": file_part.filename, "size": LAYER3_EXCEL_PATH.stat().st_size})
+
             body = await request.json()
             
             if path == "/api/auth/register":
@@ -432,7 +448,7 @@ async def http_handler(request: web.Request) -> web.Response:
                 return web.json_response(sync_pvs_wiki())
             if path == "/api/pvs/download":
                 return web.json_response({"files": download_pvs_from_jira(body.get("parent_key", ""))})
-            
+
             return web.json_response({"error": "Not found"}, status=404)
     
     except Exception as exc:
@@ -515,7 +531,12 @@ def create_app() -> web.Application:
 def main() -> int:
     init_auth_db()
     set_event_loop(asyncio.get_event_loop())
-    
+
+    # Initialize gap tracking tables on Turso (so they persist on Railway)
+    from app import _ensure_gap_table
+    _ensure_gap_table()
+    print("[DB] Gap tracking tables initialized", flush=True)
+
     host = os.environ.get("DEMO_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", os.environ.get("DEMO_PORT", "7860")))
     
