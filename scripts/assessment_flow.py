@@ -15,9 +15,10 @@ JIRA_URL = 'https://devstack.vgc.com.cn/jira'
 TOKEN = 'YOUR_JIRA_TOKEN'
 HEADERS = {'Authorization': f'Bearer {TOKEN}'}
 
-RAW_DIR = Path(r'C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs')
-WIKI_DIR = Path(r'C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries')
-REPORTS_DIR = Path(r'C:\Users\T1UKLL7\Desktop\Workstation\employee agent\runtime\reports')
+_APP_ROOT = Path(__file__).resolve().parent.parent
+RAW_DIR = _APP_ROOT / "wiki" / "raw" / "pvs"
+WIKI_DIR = _APP_ROOT / "wiki" / "queries"
+REPORTS_DIR = _APP_ROOT / "runtime" / "reports"
 
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 WIKI_DIR.mkdir(parents=True, exist_ok=True)
