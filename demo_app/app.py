@@ -600,25 +600,46 @@ class DemoHandler(BaseHTTPRequestHandler):
         def run():
             try:
                 action_map = {
-                    "deep_jira": ("Deep Jira Analysis", ANALYSIS_SCRIPTS / "deep_jira_analysis.py"),
-                    "market_overview": ("Market Overview Analysis", ANALYSIS_SCRIPTS / "comprehensive_analysis.py"),
-                    "obd_data": ("OBD Verification", ANALYSIS_SCRIPTS / "verify_obd_data.py"),
-                    "cyber_security": ("Cyber Security Verification", ANALYSIS_SCRIPTS / "verify_cyber_security.py"),
-                    "layer3_excel": ("Generate Layer3 Excel Report", ANALYSIS_SCRIPTS / "create_excel_final.py"),
-                    "fusa_data": ("FuSa Verification", ANALYSIS_SCRIPTS / "verify_fusa.py"),
-                    "ota_data": ("OTA and SW Update Verification", ANALYSIS_SCRIPTS / "verify_ota.py"),
-                    "immobilizer_data": ("Immobilizer Verification", ANALYSIS_SCRIPTS / "verify_immobilizer.py"),
+                    "market_overview": "Market Overview Analysis",
+                    "layer3_excel": "Generate Layer3 Excel Report",
+                    "deep_jira": "Deep Jira Analysis",
+                    "obd_data": "OBD Verification",
+                    "cyber_security": "Cyber Security Verification",
+                    "fusa_data": "FuSa Verification",
+                    "ota_data": "OTA and SW Update Verification",
+                    "immobilizer_data": "Immobilizer Verification",
                 }
-                info = action_map.get(action)
-                if not info:
+                label = action_map.get(action, action)
+
+                if action in ("market_overview", "layer3_excel", "topic_comments"):
+                    emit("step", f"Preparing {label}...", {"step": "prepare"})
+                    emit("step", f"Fetching data from Jira...", {"step": "analyzing"})
+                    result = run_analysis_action(action, {})
+                    if "error" in result:
+                        emit("failed", result["error"])
+                        return
+                    emit("step", "Rendering results...", {"step": "rendering"})
+                    self._sse_send("done", json.dumps({"output": result.get("output", str(result)), "returncode": result.get("returncode", 0), "script": action}, ensure_ascii=False))
+                    return
+
+                script_map = {
+                    "deep_jira": ANALYSIS_SCRIPTS / "deep_jira_analysis.py",
+                    "obd_data": ANALYSIS_SCRIPTS / "verify_obd_data.py",
+                    "cyber_security": ANALYSIS_SCRIPTS / "verify_cyber_security.py",
+                    "fusa_data": ANALYSIS_SCRIPTS / "verify_fusa.py",
+                    "ota_data": ANALYSIS_SCRIPTS / "verify_ota.py",
+                    "immobilizer_data": ANALYSIS_SCRIPTS / "verify_immobilizer.py",
+                }
+                script_path = script_map.get(action)
+
+                if not script_path:
                     emit("failed", f"Unknown action: {action}")
                     return
 
-                emit("step", f"Preparing to run {info[0]}...", {"step": "prepare"})
-                script_path = info[1]
+                emit("step", f"Preparing to run {label}...", {"step": "prepare"})
 
                 if not script_path.exists():
-                    emit("failed", f"Script not found: {script_path}")
+                    emit("failed", f"Script not found: {script_path}. Use topic_comments buttons instead.")
                     return
 
                 emit("step", f"Running analysis script...", {"step": "analyzing"})
@@ -639,7 +660,6 @@ class DemoHandler(BaseHTTPRequestHandler):
                         emit("cancelled", "Cancelled by user")
                         return
                     stripped = line.rstrip()
-                    import re
                     stripped = re.sub(r"\x1b\[[0-9;]*m", "", stripped)
                     if stripped.strip():
                         output_lines.append(stripped)
@@ -650,7 +670,7 @@ class DemoHandler(BaseHTTPRequestHandler):
                 output = "\n".join(output_lines)
 
                 if proc.returncode != 0 and not output.strip():
-                    output = f"[完成] {info[0]} 执行完成（exit {proc.returncode}）"
+                    output = f"[完成] {label} 执行完成（exit {proc.returncode}）"
 
                 emit("step", "正在渲染结果...", {"step": "rendering"})
                 self._sse_send("done", json.dumps({"output": output, "returncode": proc.returncode, "script": script_path.name}, ensure_ascii=False))
@@ -4573,33 +4593,287 @@ def build_topic_comments_report(topic: str = "") -> dict:
     return {"ok": True, "topic": topic or "all", "topics": all_results}
 
 
+def _fetch_ticket_status(ticket_key: str) -> dict:
+    """Fetch only ticket status (lighter than _fetch_ticket_info)."""
+    if not ticket_key:
+        return {"key": "", "status": "N/A", "summary": "", "assignee": ""}
+    data = _jira_get(f"/rest/api/2/issue/{ticket_key}")
+    if not data:
+        return {"key": ticket_key, "status": "ERROR", "summary": "", "assignee": ""}
+    fields = data.get("fields", {})
+    assignee = fields.get("assignee") or {}
+    return {
+        "key": ticket_key,
+        "status": (fields.get("status") or {}).get("name", "N/A"),
+        "summary": str(fields.get("summary", ""))[:80],
+        "assignee": assignee.get("displayName", "Unassigned") if assignee else "Unassigned",
+    }
+
+
+def _status_label(jira_status: str) -> str:
+    """Map Jira status to a compact label for the overview table."""
+    s = jira_status.lower().strip()
+    if s in ("closed", "done", "resolved"):
+        return "Completed"
+    if "in progress" in s or "implement" in s or "develop" in s:
+        return "In Progress"
+    if "open" in s or "to do" in s or "backlog" in s:
+        return "Required"
+    if "baseload" in s:
+        return "Baseload"
+    return jira_status or "N/A"
+
+
+def generate_market_overview() -> dict:
+    """Fetch all market ticket statuses from Jira and build a text overview table."""
+    lines = []
+    lines.append("=" * 120)
+    lines.append("Export Markets Regulatory Compliance - Market Overview")
+    lines.append(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 120)
+    lines.append("")
+
+    header = f"{'Market':<18} {'Layer3':<12} {'Cyber':<12} {'Data':<12} {'OTA':<12} {'OBD':<12} {'FuSa':<12} {'Assignee':<18}"
+    lines.append(header)
+    lines.append("-" * 120)
+
+    market_rows = []
+    for m in MARKETS:
+        results = {}
+        domains = [("Layer3", "layer3"), ("Cyber", "cyber"), ("Data", "data"), ("OTA", "ota"), ("OBD", "obd"), ("FuSa", "fusa")]
+        for label, key in domains:
+            tk = m.get(key)
+            if tk:
+                info = _fetch_ticket_status(tk)
+                results[label] = info
+            else:
+                results[label] = {"key": "", "status": "N/A", "assignee": ""}
+
+        assignee = results["Layer3"].get("assignee", "")
+        row_line = (
+            f"{m['name']:<18} "
+            f"{_status_label(results['Layer3']['status']):<12} "
+            f"{_status_label(results['Cyber']['status']):<12} "
+            f"{_status_label(results['Data']['status']):<12} "
+            f"{_status_label(results['OTA']['status']):<12} "
+            f"{_status_label(results['OBD']['status']):<12} "
+            f"{_status_label(results['FuSa']['status']):<12} "
+            f"{assignee:<18}"
+        )
+        lines.append(row_line)
+
+        market_rows.append({
+            "market": m["name"],
+            "ticket": m["ticket"],
+            "layer3": m["layer3"],
+            "cyber_status": results["Cyber"]["status"],
+            "data_status": results["Data"]["status"],
+            "ota_status": results["OTA"]["status"],
+            "obd_status": results["OBD"]["status"],
+            "fusa_status": results["FuSa"]["status"],
+            "assignee": assignee,
+        })
+
+    lines.append("")
+    lines.append("-" * 120)
+    lines.append(f"Total markets: {len(MARKETS)}")
+
+    completed = sum(1 for r in market_rows if all(
+        _status_label(r[f"{d}_status"]) == "Completed"
+        for d in ["cyber", "data", "ota", "obd", "fusa"]
+    ))
+    in_progress = sum(1 for r in market_rows if any(
+        _status_label(r[f"{d}_status"]) == "In Progress"
+        for d in ["cyber", "data", "ota", "obd", "fusa"]
+    ))
+    lines.append(f"Fully completed: {completed}")
+    lines.append(f"In progress: {in_progress}")
+
+    lines.append("")
+    lines.append("Ticket Details:")
+    lines.append("-" * 120)
+    for m in MARKETS:
+        lines.append(f"  {m['name']}:")
+        lines.append(f"    Parent: {m['ticket']}  Layer3: {m['layer3']}")
+        lines.append(f"    Cyber: {m.get('cyber', 'N/A')}  Data: {m.get('data', 'N/A')}  OTA: {m.get('ota', 'N/A')}")
+        lines.append(f"    OBD: {m.get('obd', 'N/A') or 'N/A'}  FuSa: {m.get('fusa', 'N/A')}")
+        lines.append("")
+
+    return {"output": "\n".join(lines), "returncode": 0}
+
+
+def generate_layer3_excel() -> dict:
+    """Generate Layer3 Comparison Excel report from Jira data."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return {"error": "openpyxl not installed"}
+
+    wb = openpyxl.Workbook()
+
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="34495E", end_color="34495E", fill_type="solid")
+    status_fills = {
+        "Completed": PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid"),
+        "In Progress": PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid"),
+        "Required": PatternFill(start_color="E7A3A3", end_color="E7A3A3", fill_type="solid"),
+        "Baseload": PatternFill(start_color="D1ECF1", end_color="D1ECF1", fill_type="solid"),
+        "N/A": PatternFill(start_color="E2E3E5", end_color="E2E3E5", fill_type="solid"),
+    }
+
+    ws1 = wb.active
+    ws1.title = "Layer 3 Comparison"
+    headers = ["Market", "Parent Ticket", "Layer3 Ticket", "Cyber Sec", "Data Sec", "OTA", "OBD", "FuSa", "Assignee", "Last Updated"]
+    for col, h in enumerate(headers, 1):
+        cell = ws1.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+
+    for row_idx, m in enumerate(MARKETS, 2):
+        domains = [("cyber", "Cyber"), ("data", "Data"), ("ota", "OTA"), ("obd", "OBD"), ("fusa", "FuSa")]
+        statuses = {}
+        assignee = ""
+        updated = ""
+        for key, _label in domains:
+            tk = m.get(key)
+            if tk:
+                info = _fetch_ticket_status(tk)
+                statuses[key] = _status_label(info["status"])
+                if not assignee:
+                    assignee = info.get("assignee", "")
+            else:
+                statuses[key] = "N/A"
+
+        ws1.cell(row=row_idx, column=1, value=m["name"]).border = thin_border
+        ws1.cell(row=row_idx, column=2, value=m["ticket"]).border = thin_border
+        ws1.cell(row=row_idx, column=3, value=m["layer3"]).border = thin_border
+
+        for col_idx, key in enumerate(["cyber", "data", "ota", "obd", "fusa"], 4):
+            label = statuses[key]
+            cell = ws1.cell(row=row_idx, column=col_idx, value=label)
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal="center")
+            if label in status_fills:
+                cell.fill = status_fills[label]
+
+        ws1.cell(row=row_idx, column=9, value=assignee).border = thin_border
+        ws1.cell(row=row_idx, column=10, value=time.strftime("%Y-%m-%d %H:%M")).border = thin_border
+
+    for col in range(1, 11):
+        ws1.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 18
+
+    ws2 = wb.create_sheet("In Progress Details")
+    ws2.cell(row=1, column=1, value="Market").font = header_font
+    ws2.cell(row=1, column=1).fill = header_fill
+    ws2.cell(row=1, column=2, value="Domain").font = header_font
+    ws2.cell(row=1, column=2).fill = header_fill
+    ws2.cell(row=1, column=3, value="Ticket").font = header_font
+    ws2.cell(row=1, column=3).fill = header_fill
+    ws2.cell(row=1, column=4, value="Status").font = header_font
+    ws2.cell(row=1, column=4).fill = header_fill
+    ws2.cell(row=1, column=5, value="Summary").font = header_font
+    ws2.cell(row=1, column=5).fill = header_fill
+
+    detail_row = 2
+    for m in MARKETS:
+        domains = [("cyber", "Cyber"), ("data", "Data"), ("ota", "OTA"), ("obd", "OBD"), ("fusa", "FuSa")]
+        for key, label in domains:
+            tk = m.get(key)
+            if not tk:
+                continue
+            info = _fetch_ticket_status(tk)
+            status_label = _status_label(info["status"])
+            if status_label in ("In Progress", "Required"):
+                ws2.cell(row=detail_row, column=1, value=m["name"]).border = thin_border
+                ws2.cell(row=detail_row, column=2, value=label).border = thin_border
+                ws2.cell(row=detail_row, column=3, value=tk).border = thin_border
+                ws2.cell(row=detail_row, column=4, value=status_label).border = thin_border
+                ws2.cell(row=detail_row, column=5, value=info.get("summary", "")).border = thin_border
+                detail_row += 1
+
+    for col in range(1, 6):
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 25
+
+    ws3 = wb.create_sheet("Data Consistency Check")
+    dc_headers = ["Market", "Ticket", "Jira Status", "Mapped Label", "Consistent", "Manual Override"]
+    for col, h in enumerate(dc_headers, 1):
+        cell = ws3.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin_border
+
+    _ensure_gap_table()
+    manual_markets = set()
+    with _get_db() as conn:
+        rows = conn.execute("SELECT DISTINCT market FROM gap_market_tracking WHERE manual_override = 1").fetchall()
+    for r in rows:
+        manual_markets.add(r[0])
+
+    dc_row = 2
+    for m in MARKETS:
+        info = _fetch_ticket_status(m["layer3"])
+        jira_status = info["status"]
+        mapped = _status_label(jira_status)
+        consistent = "Yes" if jira_status.lower() in (mapped.lower(), mapped.replace(" ", "").lower()) else "Check"
+        manual = "Yes" if m["name"] in manual_markets else ""
+        ws3.cell(row=dc_row, column=1, value=m["name"]).border = thin_border
+        ws3.cell(row=dc_row, column=2, value=m["layer3"]).border = thin_border
+        ws3.cell(row=dc_row, column=3, value=jira_status).border = thin_border
+        ws3.cell(row=dc_row, column=4, value=mapped).border = thin_border
+        ws3.cell(row=dc_row, column=5, value=consistent).border = thin_border
+        ws3.cell(row=dc_row, column=6, value=manual).border = thin_border
+        if consistent == "Check":
+            for col in range(1, 7):
+                ws3.cell(row=dc_row, column=col).fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+        dc_row += 1
+
+    for col in range(1, 7):
+        ws3.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 20
+
+    filename = f"Export_Markets_Layer3_Comparison_{time.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    filepath = REPORTS_DIR / filename
+    wb.save(str(filepath))
+
+    return {"output": f"Excel report generated: {filepath}", "returncode": 0, "file_path": str(filepath)}
+
+
 def run_analysis_action(action: str, body: dict | None = None) -> dict:
-    """Run an analysis script from 00-analysis module"""
+    """Run an analysis action. topic_comments and market_overview/layer3_excel are handled directly."""
     try:
         if action == "topic_comments":
             topic = str((body or {}).get("topic", "")).strip() if body else ""
             return build_topic_comments_report(topic)
 
+        if action == "market_overview":
+            return generate_market_overview()
+
+        if action == "layer3_excel":
+            return generate_layer3_excel()
+
         action_map = {
             "deep_jira": "deep_jira_analysis.py",
-            "market_overview": "comprehensive_analysis.py",
             "obd_data": "verify_obd_data.py",
             "cyber_security": "verify_cyber_security.py",
-            "layer3_excel": "create_excel_final.py",
             "fusa_data": "verify_fusa.py",
             "ota_data": "verify_ota.py",
             "immobilizer_data": "verify_immobilizer.py",
         }
-        
+
         script_name = action_map.get(action)
         if not script_name:
-            return {"error": f"Unknown analysis action: {action}", "available": list(action_map.keys())}
-        
+            return {"error": f"Unknown analysis action: {action}", "available": list(action_map.keys()) + ["topic_comments", "market_overview", "layer3_excel"]}
+
         script_path = ANALYSIS_SCRIPTS / script_name
         if not script_path.exists():
-            return {"error": f"Script not found: {script_path}"}
-        
-        # Run the script and capture output
+            return {"error": f"Script not found: {script_path}. Please use the domain-specific topic_comments buttons instead."}
+
         result = subprocess.run(
             [PYTHON, str(script_path)],
             capture_output=True,
@@ -4609,11 +4883,11 @@ def run_analysis_action(action: str, body: dict | None = None) -> dict:
             timeout=120,
             cwd=str(ANALYSIS_SCRIPTS)
         )
-        
+
         output = result.stdout if result.stdout else result.stderr if result.stderr else ""
         if not output.strip():
             output = f"[完成] {script_name} 执行成功（无输出）"
-        
+
         return {"output": output, "returncode": result.returncode, "script": script_name}
     except subprocess.TimeoutExpired:
         return {"error": "分析超时（120秒）"}
