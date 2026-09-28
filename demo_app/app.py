@@ -3757,7 +3757,7 @@ def _auto_promote_evaluating() -> None:
         print(f"[gap-auto-promote] error: {e}")
 
 
-def gap_tracking_status(auto_detect_na: bool = True) -> dict:
+def gap_tracking_status(auto_detect_na: bool = False) -> dict:
     """Market-level gap analysis tracking status.
     Each market shows its 6 topics, their ticket keys, completion status,
     and whether the market's Layer3 ticket is ready to close.
@@ -3771,17 +3771,9 @@ def gap_tracking_status(auto_detect_na: bool = True) -> dict:
 
     For can_close: all NEEDED topics must be in gap_analysis or not_applicable.
     'not_applicable' topics are excluded from the can_close denominator."""
-    _auto_detect_na(auto=auto_detect_na)
-    _auto_promote_evaluating()
     _ensure_gap_table()
     stored: dict = {}
-    # Ticket info cache for auto-detection (avoid repeated Jira calls)
     _ticket_info_cache: dict = {}
-
-    def _get_ticket_info_cached(tkey: str) -> dict:
-        if tkey not in _ticket_info_cache:
-            _ticket_info_cache[tkey] = _fetch_ticket_info(tkey)
-        return _ticket_info_cache[tkey]
 
     with _get_db() as conn:
         rows = conn.execute(
@@ -3812,24 +3804,8 @@ def gap_tracking_status(auto_detect_na: bool = True) -> dict:
             row = stored.get((market_name, topic_key), {})
             row_status = row.get("status", "")
 
-            # For missing DB entries: auto-detect whether evaluation is needed
-            # Skip auto-detect if user manually set status (manual_override) and no new Jira comments appeared
-            row_manual = row.get("manual_override", 0)
-            row_manual_count = row.get("manual_comment_count", -1)
             if not row_status:
-                if row_manual and row_manual_count >= 0:
-                    row_status = "pending"
-                else:
-                    info = _get_ticket_info_cached(ticket)
-                    tstatus = (info or {}).get("status", "N/A")
-                    comment_count = (info or {}).get("comment_count", 0)
-                    if tstatus == "N/A" or (comment_count == 0 and tstatus.lower() in (
-                        "done", "closed", "cancelled", "canceled", "rejected", "withdrawn",
-                        "not applicable", "not_applicable", "obsolete", "superseded"
-                    )):
-                        row_status = "not_applicable"
-                    else:
-                        row_status = "pending"
+                row_status = "pending"
 
             topics.append({
                 "topic": topic_key,
