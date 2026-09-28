@@ -72,20 +72,6 @@ async def http_handler(request: web.Request) -> web.Response:
     needs_auth = path not in public_paths and not is_static
     
     if needs_auth and not current_user:
-        # Also check Basic auth for backward compat
-        import base64
-        if auth_header.startswith("Basic "):
-            try:
-                decoded = base64.b64decode(auth_header[6:]).decode()
-                user_name, pwd = decoded.split(":", 1)
-                from app import AUTH_USERS
-                if AUTH_USERS.get(user_name) == pwd:
-                    current_user = {"id": 0, "username": user_name, "display_name": user_name}
-                    _thread_local.current_user = current_user
-            except Exception:
-                pass
-
-    if needs_auth and not current_user:
         return web.json_response({"error": "Authentication required", "redirect": "/login"}, status=401)
     
     # Serve static files
@@ -270,22 +256,6 @@ async def http_handler(request: web.Request) -> web.Response:
         
         # POST routes
         if method == "POST":
-            # Multipart file upload (don't parse as JSON)
-            if path == "/api/upload/excel":
-                from app import LAYER3_EXCEL_PATH
-                reader = await request.multipart()
-                file_part = await reader.next()
-                if not file_part or not file_part.filename:
-                    return web.json_response({"ok": False, "error": "No file uploaded"}, status=400)
-                LAYER3_EXCEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-                with open(LAYER3_EXCEL_PATH, "wb") as f:
-                    while True:
-                        chunk = await file_part.read_chunk(size=8192)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                return web.json_response({"ok": True, "filename": file_part.filename, "size": LAYER3_EXCEL_PATH.stat().st_size})
-
             body = await request.json()
             
             if path == "/api/auth/register":
