@@ -281,14 +281,29 @@ def wiki_search_semantic(query: str, limit: int = 10, include_raw: bool = True) 
     return {"hits": parsed, "mode": "semantic"}
 
 
-def fetch_emails() -> dict:
+def fetch_emails(user_keywords=None, user_lookback=None) -> dict:
     import traceback
     import logging
+
+    bridge_result = _try_bridge("scan_emails", {
+        "keywords": user_keywords or [],
+        "days_back": user_lookback or 3,
+        "limit": 50,
+    }, timeout=30)
+    if bridge_result is not None:
+        if bridge_result.get("ok"):
+            return {"emails": bridge_result.get("data", {}).get("emails", [])}
+        return {"emails": [], "error": bridge_result.get("error", "bridge error")}
+
     sys.path.insert(0, str(APP_ROOT))
     try:
         from scripts.run_daily_report import find_emails, load_config as agent_load_config
 
         config = agent_load_config(CONFIG_PATH)
+        if user_keywords:
+            config.setdefault("mail", {})["subject_contains"] = user_keywords
+        if user_lookback:
+            config.setdefault("mail", {})["days_back"] = user_lookback
         mail_cfg = config.get('mail', {})
         print(f"[DEMO] Config loaded: keywords={mail_cfg.get('subject_contains', [])}")
         emails = []
@@ -505,6 +520,24 @@ _thread_local = _threading.local()
 
 _PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/register"}
 
+
+def _current_username() -> str | None:
+    """Get the current request's username from thread-local storage."""
+    user = getattr(_thread_local, 'current_user', None)
+    return user['username'] if user else None
+
+
+def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dict | None:
+    """Try to route a command through the bridge if connected. Returns None if no bridge."""
+    username = _current_username()
+    if not username:
+        return None
+    from bridge_manager import is_bridge_connected, send_bridge_command_sync
+    if is_bridge_connected(username):
+        return send_bridge_command_sync(username, command, params or {}, timeout=timeout)
+    return None
+
+
 class DemoHandler(BaseHTTPRequestHandler):
     server_version = "GRCAgentDemo/1.0"
 
@@ -538,23 +571,6 @@ class DemoHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"error": "Authentication required", "redirect": "/login"}')
             return True
         return False
-
-
-def _current_username() -> str | None:
-    """Get the current request's username from thread-local storage."""
-    user = getattr(_thread_local, 'current_user', None)
-    return user['username'] if user else None
-
-
-def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dict | None:
-    """Try to route a command through the bridge if connected. Returns None if no bridge."""
-    username = _current_username()
-    if not username:
-        return None
-    from bridge_manager import is_bridge_connected, send_bridge_command_sync
-    if is_bridge_connected(username):
-        return send_bridge_command_sync(username, command, params or {}, timeout=timeout)
-    return None
 
     def _send_sse_headers(self) -> None:
         self.send_response(200)
@@ -691,6 +707,8 @@ def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dic
                 )
             if path == "/api/emails":
                 return json_response(self, fetch_emails())
+            if path == "/api/tickets/registered":
+                return json_response(self, get_registered_tickets())
             if path == "/api/assessments/sent":
                 return json_response(self, get_assessments_sent())
             if path == "/api/reports":
@@ -828,6 +846,7 @@ def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dic
     def do_POST(self) -> None:
         try:
             parsed = urlparse(self.path)
+            qs = parse_qs(parsed.query)
             body = self.read_json()
             
             if parsed.path == "/api/auth/register":
@@ -1041,6 +1060,17 @@ def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dic
                     "last_check": JIRA_MONITOR.last_check,
                     "next_check": JIRA_MONITOR.next_check,
                 }})
+            if parsed.path == "/api/tickets/register":
+                ticket_key = str(body.get("ticket_key", "")).strip()
+                registered_by = str(body.get("registered_by", "")).strip()
+                if not ticket_key:
+                    return json_response(self, {"ok": False, "error": "ticket_key is required"}, status=400)
+                return json_response(self, register_ticket(ticket_key, registered_by))
+            if parsed.path == "/api/tickets/unregister":
+                ticket_key = str(body.get("ticket_key", "")).strip()
+                if not ticket_key:
+                    return json_response(self, {"ok": False, "error": "ticket_key is required"}, status=400)
+                return json_response(self, unregister_ticket(ticket_key))
             return json_response(self, {"error": "Not found"}, status=404)
         except Exception as exc:
             return json_response(self, {"error": str(exc), "trace": traceback.format_exc()}, status=500)
@@ -2021,9 +2051,11 @@ def sync_pvs_wiki() -> dict:
     
     print("[WikiSync] Starting PVS Wiki sync...")
     
-    # 配置
-    JIRA_URL = "https://devstack.vgc.com.cn/jira"
-    JIRA_TOKEN = "YOUR_JIRA_TOKEN"
+    JIRA_URL, JIRA_TOKEN = _load_jira_config()
+    if not JIRA_URL:
+        JIRA_URL = "https://devstack.vgc.com.cn/jira"
+    if not JIRA_TOKEN:
+        return {"ok": False, "error": "JIRA token not configured"}
     
     RAW_DIR = APP_ROOT / "wiki" / "raw" / "pvs"
     WIKI_DIR = APP_ROOT / "wiki" / "queries"
@@ -2056,12 +2088,10 @@ def sync_pvs_wiki() -> dict:
             for att in attachments:
                 filename = att.get("filename", "")
                 if filename.lower().endswith(('.xlsx', '.xls')):
-                    # 下载
-                    dl_resp = requests.get(
-                        f"{JIRA_URL}/rest/api/2/issue/{ticket_key}/attachments/{filename}",
-                        headers=headers,
-                        timeout=60
-                    )
+                    dl_url = att.get("content", "")
+                    if not dl_url:
+                        continue
+                    dl_resp = requests.get(dl_url, headers=headers, timeout=60)
                     if dl_resp.status_code == 200:
                         out_name = f"{ticket_key}_{filename}"
                         out_path = RAW_DIR / out_name
@@ -2239,7 +2269,7 @@ def send_assessment_email(data: dict) -> dict:
             parent_summary = _get_parent_summary(parent_key)
             if parent_summary:
                 parts = []
-                if "[" in parent_summary:
+                if "[" in parent_summary and "]" in parent_summary:
                     inner = parent_summary[parent_summary.index("[")+1:parent_summary.index("]")]
                     for token in inner.split("@"):
                         token = token.strip()
@@ -3438,6 +3468,7 @@ def _ensure_gap_table() -> None:
 
 def save_monthly_report_data(market_rows: list, critical_items: list, action_items: list, closed_items: list) -> None:
     """Cache monthly report data to DB so it's available on Railway without Excel file."""
+    _ensure_gap_table()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     with _get_db() as conn:
         conn.execute(
@@ -3450,6 +3481,7 @@ def save_monthly_report_data(market_rows: list, critical_items: list, action_ite
 
 def load_monthly_report_data() -> dict | None:
     """Load cached monthly report data from DB. Returns None if not cached."""
+    _ensure_gap_table()
     with _get_db() as conn:
         row = conn.execute("SELECT market_rows, critical_items, action_items, closed_items, updated_at FROM monthly_report_data WHERE id = 1").fetchone()
     if not row:
@@ -4305,6 +4337,7 @@ def _llm_topic_summary(label: str, markets: list) -> str:
         result = _call_llm_chat(api_key, base_url, model, llm_messages, temperature=0.2, max_tokens=800, timeout=25)
         if result.get("ok"):
             return str(result["data"]["choices"][0]["message"]["content"]).strip()
+        return _fallback_topic_summary(label, markets)
     except Exception as e:
         print(f"[topic_comments] LLM summary failed for {label}: {e}")
         return _fallback_topic_summary(label, markets)
@@ -4834,14 +4867,14 @@ def chat_with_llm(session_id: str, user_message: str) -> dict:
             # Save assistant message
             save_chat_message(session_id, "assistant", assistant_content)
 
-            # Update session
-            sessions = get_chat_sessions()
-            for s in sessions:
-                if s["id"] == session_id:
-                    s["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                    s["message_count"] = s.get("message_count", 0) + 2
-                    break
-            CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
+            with _chat_file_lock:
+                sessions = get_chat_sessions()
+                for s in sessions:
+                    if s["id"] == session_id:
+                        s["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                        s["message_count"] = s.get("message_count", 0) + 2
+                        break
+                CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
 
             return {
                 "ok": True,
