@@ -1524,22 +1524,38 @@ async function gapComplete(market, topic) {
 async function gapSetStatus(market, topic, status) {
   const labelMap = { "evaluating": "Evaluating", "gap_analysis": "Gap analysis done", "pending": "Pending" };
   const label = labelMap[status] || status;
+  const chip = document.querySelector(`.gap-chip[data-market="${CSS.escape(market)}"][data-topic="${CSS.escape(topic)}"]`);
+  if (chip) {
+    chip.classList.remove("gap-chip-pending", "gap-chip-evaluating", "gap-chip-gap_analysis", "gap-chip-completed", "gap-chip-closed");
+    chip.classList.add("gap-chip-" + status);
+    chip.dataset.status = status;
+    const statusEl = chip.querySelector(".gap-chip-status");
+    if (statusEl) statusEl.textContent = label;
+  }
   try {
     await api("/api/gap-tracking/set-status", { method: "POST", body: JSON.stringify({ market, topic, status }) });
-    toast("Updated: " + market + " / " + topic + " → " + label);
-    loadGapTracking();
+    toast(market + " / " + topic + " → " + label);
   } catch (err) {
     toast("Update failed: " + err.message, true);
+    loadGapTracking();
   }
 }
 
 async function gapReset(market, topic) {
+  const chip = document.querySelector(`.gap-chip[data-market="${CSS.escape(market)}"][data-topic="${CSS.escape(topic)}"]`);
+  if (chip) {
+    chip.classList.remove("gap-chip-evaluating", "gap-chip-gap_analysis", "gap-chip-completed", "gap-chip-closed");
+    chip.classList.add("gap-chip-pending");
+    chip.dataset.status = "pending";
+    const statusEl = chip.querySelector(".gap-chip-status");
+    if (statusEl) statusEl.textContent = "Pending";
+  }
   try {
     await api("/api/gap-tracking/reset", { method: "POST", body: JSON.stringify({ market, topic }) });
-    toast("Reset: " + market + " / " + topic);
-    loadGapTracking();
+    toast(market + " / " + topic + " → Pending");
   } catch (err) {
     toast("Reset failed: " + err.message, true);
+    loadGapTracking();
   }
 }
 
