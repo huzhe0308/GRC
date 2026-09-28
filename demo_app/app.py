@@ -31,14 +31,7 @@ LAYER3_EXCEL_PATH = APP_ROOT / "runtime" / "Export_Markets_Layer3_Comparison.xls
 
 
 def _get_db():
-    """Get database connection — Turso (cloud) or SQLite (local).
-
-    On Railway (TURSO_URL set), returns a _TursoConn that talks to the
-    same Turso database used by auth.py, so all tables (gap tracking,
-    registered tickets, etc.) persist across container restarts.
-
-    Locally, returns a sqlite3 connection to runtime/state.sqlite.
-    """
+    """Get database connection — Turso (cloud) or SQLite (local)."""
     _turso_url = os.environ.get("TURSO_URL", "")
     if _turso_url:
         from auth import _TursoConn
@@ -288,7 +281,7 @@ def wiki_search_semantic(query: str, limit: int = 10, include_raw: bool = True) 
     return {"hits": parsed, "mode": "semantic"}
 
 
-def fetch_emails(user_keywords: list = None, user_lookback: int = None) -> dict:
+def fetch_emails() -> dict:
     import traceback
     import logging
     sys.path.insert(0, str(APP_ROOT))
@@ -297,42 +290,7 @@ def fetch_emails(user_keywords: list = None, user_lookback: int = None) -> dict:
 
         config = agent_load_config(CONFIG_PATH)
         mail_cfg = config.get('mail', {})
-
-        # Determine keywords and lookback: user-provided > config.yaml default
-        # Empty list means no keyword filter (scan all emails)
-        if user_keywords is not None:
-            keywords = user_keywords
-        else:
-            keywords = mail_cfg.get('subject_contains', [])
-        if isinstance(keywords, str):
-            keywords = [keywords]
-        days_back = int(user_lookback or mail_cfg.get('lookback_days', 30) or 30)
-        max_emails = int(mail_cfg.get('max_emails', 50) or 50)
-
-        # On cloud: route through bridge agent (Outlook COM is not available on Railway)
-        is_cloud = bool(os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RAILWAY_SERVICE_ID") or os.environ.get("DYNO"))
-        if is_cloud:
-            print(f"[DEMO] Cloud scan_emails: keywords={keywords}, days_back={days_back}, limit={max_emails}", flush=True)
-            bridge_result = _try_bridge("scan_emails", {
-                "keywords": keywords,
-                "sender_filter": mail_cfg.get('sender_contains', ''),
-                "days_back": days_back,
-                "limit": max_emails,
-            }, timeout=60)
-            if bridge_result and bridge_result.get("ok"):
-                emails = bridge_result.get("emails", [])
-                print(f"[DEMO] Bridge found {len(emails)} emails", flush=True)
-                return {"emails": emails}
-            # Bridge not connected
-            err = bridge_result.get("error", "Bridge not connected") if bridge_result else "Bridge not connected"
-            return {"emails": [], "error": f"Outlook Bridge required for email scanning ({err})"}
-
-        # Local: use direct Outlook COM
-        print(f"[DEMO] Local scan: keywords={keywords}, days_back={days_back}", flush=True)
-        # Override config with user keywords for local run
-        config['mail']['subject_contains'] = keywords
-        if user_lookback:
-            config['mail']['lookback_days'] = days_back
+        print(f"[DEMO] Config loaded: keywords={mail_cfg.get('subject_contains', [])}")
         emails = []
         for email in find_emails(config):
             emails.append(
@@ -545,11 +503,6 @@ import threading as _threading
 
 _thread_local = _threading.local()
 
-AUTH_USERS = {
-    "admin": "grc2026",
-    "guest": "grc2026",
-}
-
 _PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/register"}
 
 class DemoHandler(BaseHTTPRequestHandler):
@@ -571,17 +524,6 @@ class DemoHandler(BaseHTTPRequestHandler):
             self._current_user = user
             _thread_local.current_user = user
             return True
-        auth_header = self.headers.get("Authorization", "")
-        if auth_header.startswith("Basic "):
-            try:
-                decoded = _b64.b64decode(auth_header[6:]).decode()
-                user_name, pwd = decoded.split(":", 1)
-                if AUTH_USERS.get(user_name) == pwd:
-                    self._current_user = {"id": 0, "username": user_name, "display_name": user_name}
-                    _thread_local.current_user = self._current_user
-                    return True
-            except Exception:
-                pass
         _thread_local.current_user = None
         return False
 
@@ -1417,74 +1359,70 @@ def _item_badge(category: str) -> str:
 
 
 def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc: list[str] = None) -> dict:
-    """Read Excel and generate monthly report HTML email body."""
-    if not LAYER3_EXCEL_PATH.exists():
-        return {
-            "ok": False,
-            "error": "Excel file not found. Please upload Export_Markets_Layer3_Comparison.xlsx via Settings page."
-        }
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(str(LAYER3_EXCEL_PATH), read_only=True, data_only=True)
+    """Generate monthly report HTML. Reads from DB cache first, falls back to Excel file."""
+    market_rows = []
+    critical_items = []
+    action_items = []
+    closed_items = []
 
-        ws_overview = wb["Layer 3 Comparison"]
-        market_rows = []
-        for i, row in enumerate(ws_overview.iter_rows(values_only=True), 1):
-            if 6 <= i <= 15 and row[0]:
-                market_rows.append({
-                    "market": str(row[0]),
-                    "ticket": str(row[1]) if row[1] else "",
-                    "countries": str(row[2]) if row[2] else "",
-                    "platform": str(row[3]) if row[3] else "",
-                    "vehicle": str(row[4]) if row[4] else "",
-                    "sop": str(row[5]) if row[5] else "",
-                    "cyber": str(row[6]) if row[6] else "N/A",
-                    "data": str(row[7]) if row[7] else "N/A",
-                    "ota": str(row[8]) if row[8] else "N/A",
-                    "obd": str(row[9]) if row[9] else "N/A",
-                    "fusa": str(row[10]) if row[10] else "N/A",
-                })
+    cached = load_monthly_report_data()
+    if cached:
+        market_rows = cached["market_rows"]
+        critical_items = cached["critical_items"]
+        action_items = cached["action_items"]
+        closed_items = cached["closed_items"]
 
-        ws_details = wb["In Progress Details"]
-        critical_items = []
-        action_items = []
-        closed_items = []
-        current_section = None
-        for i, row in enumerate(ws_details.iter_rows(values_only=True), 1):
-            if i <= 5:
-                continue
-            val = row[0] if row else None
-            val_str = str(val).strip() if val else ""
-            if val_str.startswith("CRITICAL"):
-                current_section = "CRITICAL"
-                continue
-            if val_str.startswith("ACTION"):
-                current_section = "ACTION"
-                continue
-            if val_str.startswith("RECENTLY CLOSED"):
-                current_section = "RECENTLYCLOSED"
-                continue
-            if val_str and val_str[0].isdigit():
-                section_map = {"CRITICAL": critical_items, "ACTION": action_items, "RECENTLYCLOSED": closed_items}
-                items = section_map.get(current_section, [])
-                items.append({
-                    "num": val_str,
-                    "market": str(row[1]) if row[1] else "",
-                    "ticket": str(row[2]) if row[2] else "",
-                    "domain": str(row[4]) if row[4] else "",
-                    "status": str(row[5]) if row[5] else "",
-                    "deadline": str(row[6]) if row[6] else "TBD",
-                    "summary": str(row[8]) if row[8] else "",
-                    "owner": str(row[9]) if row[9] else "",
-                    "closed": str(row[11]) if len(row) > 11 and row[11] else "",
-                })
+    if not market_rows and LAYER3_EXCEL_PATH.exists():
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(str(LAYER3_EXCEL_PATH), read_only=True, data_only=True)
+            ws_overview = wb["Layer 3 Comparison"]
+            for i, row in enumerate(ws_overview.iter_rows(values_only=True), 1):
+                if 6 <= i <= 15 and row[0]:
+                    market_rows.append({
+                        "market": str(row[0]), "ticket": str(row[1]) if row[1] else "",
+                        "countries": str(row[2]) if row[2] else "", "platform": str(row[3]) if row[3] else "",
+                        "vehicle": str(row[4]) if row[4] else "", "sop": str(row[5]) if row[5] else "",
+                        "cyber": str(row[6]) if row[6] else "N/A", "data": str(row[7]) if row[7] else "N/A",
+                        "ota": str(row[8]) if row[8] else "N/A", "obd": str(row[9]) if row[9] else "N/A",
+                        "fusa": str(row[10]) if row[10] else "N/A",
+                    })
+            ws_details = wb["In Progress Details"]
+            current_section = None
+            for i, row in enumerate(ws_details.iter_rows(values_only=True), 1):
+                if i <= 5:
+                    continue
+                val = row[0] if row else None
+                val_str = str(val).strip() if val else ""
+                if val_str.startswith("CRITICAL"):
+                    current_section = "CRITICAL"; continue
+                if val_str.startswith("ACTION"):
+                    current_section = "ACTION"; continue
+                if val_str.startswith("RECENTLY CLOSED"):
+                    current_section = "RECENTLYCLOSED"; continue
+                if val_str and val_str[0].isdigit():
+                    section_map = {"CRITICAL": critical_items, "ACTION": action_items, "RECENTLYCLOSED": closed_items}
+                    items = section_map.get(current_section, [])
+                    items.append({
+                        "num": val_str, "market": str(row[1]) if row[1] else "",
+                        "ticket": str(row[2]) if row[2] else "", "domain": str(row[4]) if row[4] else "",
+                        "status": str(row[5]) if row[5] else "", "deadline": str(row[6]) if row[6] else "TBD",
+                        "summary": str(row[8]) if row[8] else "", "owner": str(row[9]) if row[9] else "",
+                        "closed": str(row[11]) if len(row) > 11 and row[11] else "",
+                    })
+            save_monthly_report_data(market_rows, critical_items, action_items, closed_items)
+        except Exception as e:
+            return {"error": f"Failed to read Excel: {e}"}
 
-        critical_count = len(critical_items)
-        action_count = len(action_items)
-        closed_count = len(closed_items)
-        market_count = len(market_rows)
+    if not market_rows:
+        return {"ok": False, "error": "No monthly report data available. Please run the report locally first to cache data to DB."}
 
-        html = """<html><body style="font-family: 'The Group TEXT'; font-size: 12pt; color: #333;">
+    critical_count = len(critical_items)
+    action_count = len(action_items)
+    closed_count = len(closed_items)
+    market_count = len(market_rows)
+
+    html = """<html><body style="font-family: 'The Group TEXT'; font-size: 12pt; color: #333;">
 <p>Hi team,</p>
 <p>Please find the Export Markets Regulatory Compliance Monthly Report, covering Cyber Security, Data Security, OTA, OBD, and FuSa domains across 10 target markets.</p>
 <p>Please kindly note the following items that require attention, and kindly close the related JIRA tickets upon In Progress:</p>
@@ -1495,10 +1433,9 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
     <span style="background: #e8f5e9; color: #2e7d32; padding: 6px 12px; border-radius: 20px; font-size: 12px;">✅ <b>{closed}</b> Closed</span>
     <span style="background: #e3f2fd; color: #1565c0; padding: 6px 12px; border-radius: 20px; font-size: 12px;">🌍 <b>{markets}</b> Markets</span>
   </div>
-</div>""".format(
-            critical=critical_count, action=action_count, closed=closed_count, markets=market_count)
+</div>""".format(critical=critical_count, action=action_count, closed=closed_count, markets=market_count)
 
-        html += """
+    html += """
 <div style="margin: 20px 0;">
   <h2 style="font-family: 'The Group TEXT'; font-size: 14pt; color: #1a5276; margin-bottom: 15px;">🌍 Market Overview</h2>
   <table style="width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'The Group TEXT';">
@@ -1516,9 +1453,9 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
       <th style="background: #34495e; color: white; padding: 12px 8px; text-align: left;">FuSa</th>
     </tr>"""
 
-        for idx, m in enumerate(market_rows):
-            bg = "#f8f9fa" if idx % 2 == 1 else "white"
-            html += f"""<tr style="background: {bg};">
+    for idx, m in enumerate(market_rows):
+        bg = "#f8f9fa" if idx % 2 == 1 else "white"
+        html += f"""<tr style="background: {bg};">
       <td style="padding: 10px 8px; border-bottom: 1px solid #eee;"><strong>{m['market']}</strong></td>
       <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">{m['ticket']}</td>
       <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">{m['countries']}</td>
@@ -1532,17 +1469,17 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
       <td style="padding: 10px 8px; border-bottom: 1px solid #eee;">{_status_badge(m['fusa'])}</td>
     </tr>"""
 
-        html += """  </table>
+    html += """  </table>
   <div style="margin-top: 15px; font-size: 11px; color: #666;">
     <span style="padding: 3px 8px; background: #fff3cd; color: #856404; border-radius: 4px; margin-right: 8px;">In Progress</span>= Work ongoing<br>
     <span style="padding: 3px 8px; background: #d4edda; color: #155724; border-radius: 4px; margin-right: 8px;">Baseload</span>= Compliance achieved | <span style="padding: 3px 8px; background: #cce5ff; color: #004085; border-radius: 4px; margin-right: 8px;">Completed</span>= Assessment done | <span style="padding: 3px 8px; background: #d1ecf1; color: #0c5460; border-radius: 4px; margin-right: 8px;">Covered</span>= Covered | <span style="padding: 3px 8px; background: #e7a3a3; color: #721c24; border-radius: 4px; margin-right: 8px;">Required</span>= Certification needed | <span style="padding: 3px 8px; background: #e2e3e5; color: #383d41; border-radius: 4px; margin-right: 8px;">N/A</span>= Not applicable
   </div>
 </div>"""
 
-        if critical_items:
-            html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">🚨 Critical Items</h2>'
-            for item in critical_items:
-                html += f"""<div style="background: #fff5f5; border-left: 4px solid #dc3545; padding: 12px 15px; margin-bottom: 10px;">
+    if critical_items:
+        html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">🚨 Critical Items</h2>'
+        for item in critical_items:
+            html += f"""<div style="background: #fff5f5; border-left: 4px solid #dc3545; padding: 12px 15px; margin-bottom: 10px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
     <strong style="color: #1a5276;">{item['market']}</strong>
     <span style="font-size: 11px; color: #666; background: #eee; padding: 2px 8px; border-radius: 3px;">{item['ticket']}</span>
@@ -1551,10 +1488,10 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
   <div style="font-size: 11px; color: #888; margin-top: 5px;">Owner: {item['owner']} | Deadline: <strong style="color: #dc3545;">{item['deadline']}</strong></div>
 </div>"""
 
-        if action_items:
-            html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">📌 Action Items</h2>'
-            for item in action_items:
-                html += f"""<div style="background: white; border: 1px solid #eee; border-left: 4px solid #ddd; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
+    if action_items:
+        html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">📌 Action Items</h2>'
+        for item in action_items:
+            html += f"""<div style="background: white; border: 1px solid #eee; border-left: 4px solid #ddd; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
     <strong style="color: #1a5276;">{item['market']}</strong>
     <span style="font-size: 11px; color: #666; background: #eee; padding: 2px 8px; border-radius: 3px;">{item['ticket']}</span>
@@ -1563,11 +1500,11 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
   <div style="font-size: 11px; color: #888; margin-top: 5px;">Owner: {item['owner']} | Deadline: {item['deadline']}</div>
 </div>"""
 
-        if closed_items:
-            html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">✅ Recently Closed</h2>'
-            for item in closed_items:
-                closed_info = f"Closed: {item['closed']}" if item['closed'] else ""
-                html += f"""<div style="background: #f0fff4; border-left: 4px solid #27ae60; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
+    if closed_items:
+        html += '<h2 style="font-family: \'The Group TEXT\'; font-size: 14pt; color: #1a5276; margin: 25px 0 15px;">✅ Recently Closed</h2>'
+        for item in closed_items:
+            closed_info = f"Closed: {item['closed']}" if item.get('closed') else ""
+            html += f"""<div style="background: #f0fff4; border-left: 4px solid #27ae60; padding: 12px 15px; margin-bottom: 10px; border-radius: 4px;">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
     <strong style="color: #1a5276;">{item['market']}</strong>
     <span style="font-size: 11px; color: #666; background: #eee; padding: 2px 8px; border-radius: 3px;">{item['ticket']}</span>
@@ -1576,21 +1513,19 @@ def generate_monthly_report_html(recipients_to: list[str] = None, recipients_cc:
   <div style="font-size: 11px; color: #888; margin-top: 5px;">Owner: {item['owner']} {closed_info}</div>
 </div>"""
 
-        html += """<hr style="border: none; border-top: 1px solid #ddd; margin: 25px 0;">
+    html += """<hr style="border: none; border-top: 1px solid #ddd; margin: 25px 0;">
 <p>Feel free to reach out if you have any questions.</p>
 <p>Best,<br>Xie, Jingjing (CEA FuSa)</p>
 </body></html>"""
 
-        subject = f"Export Markets Regulatory Compliance Monthly Report - {time.strftime('%B %Y')}"
-        return {
-            "html": html,
-            "subject": subject,
-            "stats": {"critical": critical_count, "action": action_count, "closed": closed_count, "markets": market_count},
-            "default_to": recipients_to or MONTHLY_REPORT_DEFAULT_TO,
-            "default_cc": recipients_cc or MONTHLY_REPORT_DEFAULT_CC,
-        }
-    except Exception as e:
-        return {"error": str(e), "trace": traceback.format_exc()}
+    subject = f"Export Markets Regulatory Compliance Monthly Report - {time.strftime('%B %Y')}"
+    return {
+        "html": html,
+        "subject": subject,
+        "stats": {"critical": critical_count, "action": action_count, "closed": closed_count, "markets": market_count},
+        "default_to": recipients_to or MONTHLY_REPORT_DEFAULT_TO,
+        "default_cc": recipients_cc or MONTHLY_REPORT_DEFAULT_CC,
+    }
 
 
 def send_monthly_report_draft(to: list[str] = None, cc: list[str] = None) -> dict:
@@ -2600,6 +2535,7 @@ ANALYSIS_SCRIPTS = ANALYSIS_DIR / "scripts"
 
 CHAT_MEMORY_FILE = APP_ROOT / "runtime" / "chat_memory.json"
 CHAT_SESSIONS_FILE = APP_ROOT / "runtime" / "chat_sessions.json"
+_chat_file_lock = _threading.Lock()
 
 OUTLOOK_SCRIPTS_DIR = Path.home() / ".config" / "opencode" / "skills" / "nb-outlook-skill" / "nb-outlook-skill" / "scripts"
 
@@ -3488,6 +3424,43 @@ def _ensure_gap_table() -> None:
                 jira_summary TEXT DEFAULT ''
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS monthly_report_data (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                market_rows TEXT DEFAULT '[]',
+                critical_items TEXT DEFAULT '[]',
+                action_items TEXT DEFAULT '[]',
+                closed_items TEXT DEFAULT '[]',
+                updated_at TEXT
+            )
+        """)
+
+
+def save_monthly_report_data(market_rows: list, critical_items: list, action_items: list, closed_items: list) -> None:
+    """Cache monthly report data to DB so it's available on Railway without Excel file."""
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    with _get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO monthly_report_data (id, market_rows, critical_items, action_items, closed_items, updated_at) VALUES (1, ?, ?, ?, ?, ?)",
+            (json.dumps(market_rows, ensure_ascii=False), json.dumps(critical_items, ensure_ascii=False),
+             json.dumps(action_items, ensure_ascii=False), json.dumps(closed_items, ensure_ascii=False), now),
+        )
+        conn.commit()
+
+
+def load_monthly_report_data() -> dict | None:
+    """Load cached monthly report data from DB. Returns None if not cached."""
+    with _get_db() as conn:
+        row = conn.execute("SELECT market_rows, critical_items, action_items, closed_items, updated_at FROM monthly_report_data WHERE id = 1").fetchone()
+    if not row:
+        return None
+    return {
+        "market_rows": json.loads(row[0]) if row[0] else [],
+        "critical_items": json.loads(row[1]) if row[1] else [],
+        "action_items": json.loads(row[2]) if row[2] else [],
+        "closed_items": json.loads(row[3]) if row[3] else [],
+        "updated_at": row[4] if len(row) > 4 else "",
+    }
 
 
 def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
@@ -3497,8 +3470,6 @@ def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
         return {"ok": False, "error": "Ticket key is required"}
     _ensure_gap_table()
     now = time.strftime("%Y-%m-%d %H:%M:%S")
-
-    # Fetch Jira summary + status if possible
     jira_status = ""
     jira_summary = ""
     try:
@@ -3508,7 +3479,6 @@ def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
             jira_summary = issue.get("fields", {}).get("summary", "")
     except Exception:
         pass
-
     with _get_db() as conn:
         conn.execute("""
             INSERT INTO registered_tickets (ticket_key, registered_by, registered_at, jira_status, jira_summary)
@@ -3518,6 +3488,7 @@ def register_ticket(ticket_key: str, registered_by: str = "") -> dict:
                 jira_status=excluded.jira_status,
                 jira_summary=excluded.jira_summary
         """, (ticket_key, registered_by, now, jira_status, jira_summary))
+        conn.commit()
     return {"ok": True, "ticket": ticket_key, "jira_status": jira_status, "jira_summary": jira_summary}
 
 
@@ -3526,6 +3497,7 @@ def unregister_ticket(ticket_key: str) -> dict:
     ticket_key = ticket_key.strip().upper()
     with _get_db() as conn:
         conn.execute("DELETE FROM registered_tickets WHERE ticket_key = ?", (ticket_key,))
+        conn.commit()
     return {"ok": True}
 
 
@@ -3539,21 +3511,15 @@ def get_registered_tickets() -> dict:
         ).fetchall()
     tickets = []
     for r in rows:
-        status = r["jira_status"] or ""
-        # Exclude closed/done tickets (condition 2: not finished)
-        status_lower = status.lower()
-        if status_lower in ("closed", "done", "resolved", "已关闭", "done ("):
+        status_lower = (r[3] or "").lower()
+        if status_lower in ("closed", "done", "resolved"):
             continue
         tickets.append({
-            "key": r["ticket_key"],
-            "registered_by": r["registered_by"],
-            "registered_at": r["registered_at"],
-            "jira_status": status,
-            "jira_summary": r["jira_summary"] or "",
-            "subject": r["jira_summary"] or "",
-            "sender": r["registered_by"] or "",
-            "received": r["registered_at"] or "",
-            "source": "registered",
+            "ticket_key": r[0],
+            "registered_by": r[1],
+            "registered_at": r[2],
+            "jira_status": r[3],
+            "jira_summary": r[4],
         })
     return {"tickets": tickets}
 
@@ -4649,27 +4615,28 @@ def get_chat_messages(session_id: str = None, limit: int = 50) -> list:
 def save_chat_message(session_id: str, role: str, content: str, metadata: dict = None) -> dict:
     """Save a chat message to memory"""
     try:
-        memory = {"messages": [], "sessions": {}}
-        if CHAT_MEMORY_FILE.exists():
-            memory = json.loads(CHAT_MEMORY_FILE.read_text(encoding="utf-8"))
-        
-        message = {
-            "id": f"msg_{len(memory.get('messages', [])) + 1:05d}",
-            "session_id": session_id,
-            "role": role,
-            "content": content,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "metadata": metadata or {}
-        }
-        
-        memory.setdefault("messages", []).append(message)
-        memory.setdefault("sessions", {})
-        memory["sessions"][session_id] = memory["sessions"].get(session_id, {})
-        memory["sessions"][session_id]["updated_at"] = message["timestamp"]
-        memory["sessions"][session_id]["last_message"] = content[:100]
-        
-        CHAT_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CHAT_MEMORY_FILE.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
+        with _chat_file_lock:
+            memory = {"messages": [], "sessions": {}}
+            if CHAT_MEMORY_FILE.exists():
+                memory = json.loads(CHAT_MEMORY_FILE.read_text(encoding="utf-8"))
+            
+            message = {
+                "id": f"msg_{len(memory.get('messages', [])) + 1:05d}",
+                "session_id": session_id,
+                "role": role,
+                "content": content,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "metadata": metadata or {}
+            }
+            
+            memory.setdefault("messages", []).append(message)
+            memory.setdefault("sessions", {})
+            memory["sessions"][session_id] = memory["sessions"].get(session_id, {})
+            memory["sessions"][session_id]["updated_at"] = message["timestamp"]
+            memory["sessions"][session_id]["last_message"] = content[:100]
+            
+            CHAT_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            CHAT_MEMORY_FILE.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
         
         return {"ok": True, "message": message}
     except Exception as e:
@@ -4678,25 +4645,26 @@ def save_chat_message(session_id: str, role: str, content: str, metadata: dict =
 def create_chat_session(title: str = None) -> dict:
     """Create a new chat session"""
     try:
-        sessions = []
-        if CHAT_SESSIONS_FILE.exists():
-            sessions = json.loads(CHAT_SESSIONS_FILE.read_text(encoding="utf-8"))
-        
-        session_id = f"session_{time.strftime('%Y%m%d_%H%M%S')}"
-        new_session = {
-            "id": session_id,
-            "title": title or f"对话 {time.strftime('%m-%d %H:%M')}",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "message_count": 0,
-            "tags": []
-        }
-        
-        sessions.insert(0, new_session)
-        sessions = sessions[:50]
-        
-        CHAT_SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
+        with _chat_file_lock:
+            sessions = []
+            if CHAT_SESSIONS_FILE.exists():
+                sessions = json.loads(CHAT_SESSIONS_FILE.read_text(encoding="utf-8"))
+            
+            session_id = f"session_{time.strftime('%Y%m%d_%H%M%S')}"
+            new_session = {
+                "id": session_id,
+                "title": title or f"对话 {time.strftime('%m-%d %H:%M')}",
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "message_count": 0,
+                "tags": []
+            }
+            
+            sessions.insert(0, new_session)
+            sessions = sessions[:50]
+            
+            CHAT_SESSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
         
         return {"ok": True, "session": new_session}
     except Exception as e:
@@ -4705,20 +4673,21 @@ def create_chat_session(title: str = None) -> dict:
 def delete_chat_session(session_id: str) -> dict:
     """Delete a chat session and its messages"""
     try:
-        sessions = []
-        if CHAT_SESSIONS_FILE.exists():
-            sessions = json.loads(CHAT_SESSIONS_FILE.read_text(encoding="utf-8"))
-        
-        sessions = [s for s in sessions if s.get("id") != session_id]
-        CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
-        
-        memory = {"messages": [], "sessions": {}}
-        if CHAT_MEMORY_FILE.exists():
-            memory = json.loads(CHAT_MEMORY_FILE.read_text(encoding="utf-8"))
-        
-        memory["messages"] = [m for m in memory.get("messages", []) if m.get("session_id") != session_id]
-        memory["sessions"].pop(session_id, None)
-        CHAT_MEMORY_FILE.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
+        with _chat_file_lock:
+            sessions = []
+            if CHAT_SESSIONS_FILE.exists():
+                sessions = json.loads(CHAT_SESSIONS_FILE.read_text(encoding="utf-8"))
+            
+            sessions = [s for s in sessions if s.get("id") != session_id]
+            CHAT_SESSIONS_FILE.write_text(json.dumps(sessions, ensure_ascii=False, indent=2), encoding="utf-8")
+            
+            memory = {"messages": [], "sessions": {}}
+            if CHAT_MEMORY_FILE.exists():
+                memory = json.loads(CHAT_MEMORY_FILE.read_text(encoding="utf-8"))
+            
+            memory["messages"] = [m for m in memory.get("messages", []) if m.get("session_id") != session_id]
+            memory["sessions"].pop(session_id, None)
+            CHAT_MEMORY_FILE.write_text(json.dumps(memory, ensure_ascii=False, indent=2), encoding="utf-8")
         
         return {"ok": True}
     except Exception as e:
