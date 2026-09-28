@@ -20,9 +20,10 @@ JIRA_URL = "https://devstack.vgc.com.cn/jira"
 JIRA_TOKEN = "YOUR_JIRA_TOKEN"
 
 # 目录
-RAW_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
-WIKI_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\queries")
-EXCEL_DIR = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\excel")
+_APP_ROOT = Path(__file__).resolve().parent.parent
+RAW_DIR = _APP_ROOT / "wiki" / "raw" / "pvs"
+WIKI_DIR = _APP_ROOT / "wiki" / "queries"
+EXCEL_DIR = _APP_ROOT / "wiki" / "raw" / "excel"
 
 # Parent工单列表
 PARENT_TICKETS = [
