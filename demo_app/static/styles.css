@@ -3742,6 +3742,8 @@ button.small {
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   user-select: none;
 }
+.gap-chip { cursor: pointer; user-select: none; transition: transform 0.1s; }
+.gap-chip:active { transform: scale(0.95); }
 .gap-chip:hover { background: #e9ecef; border-color: #adb5bd; }
 .gap-chip-pending { background: #f8f9fa; border-color: #dee2e6; }
 .gap-chip-evaluating { background: #fff3cd; border-color: #ffc107; }
