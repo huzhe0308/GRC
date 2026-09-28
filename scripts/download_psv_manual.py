@@ -30,13 +30,16 @@ for ticket, desc in PARENT_TICKETS.items():
     print(f'  {url}')
     print(f'  请下载PSV/PSV Excel文件，重命名为: {ticket}_PSV.xlsx')
 
+_APP_ROOT = Path(__file__).resolve().parent.parent
+_target = _APP_ROOT / "wiki" / "raw" / "pvs"
+
 print('\n' + '=' * 60)
 print('下载后保存到:')
-print(r'C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs')
+print(str(_target))
 print('=' * 60)
 
 # 创建目录
-target_dir = Path(r'C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs')
+target_dir = _target
 target_dir.mkdir(parents=True, exist_ok=True)
 
 print(f'\n目录已创建: {target_dir}')
