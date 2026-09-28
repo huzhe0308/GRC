@@ -162,8 +162,9 @@ def generate_markdown(title: str, regulations: list) -> str:
 def main():
     """主函数"""
     # 源目录和目标目录
-    source_dir = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki\raw\pvs")
-    output_dir = Path(r"C:\Users\T1UKLL7\Desktop\Workstation\employee agent\_archive_llm_wiki")
+    _app_root = Path(__file__).resolve().parent.parent
+    source_dir = _app_root / "wiki" / "raw" / "pvs"
+    output_dir = _app_root / "wiki"
     
     if not source_dir.exists():
         print(f"源目录不存在: {source_dir}")
