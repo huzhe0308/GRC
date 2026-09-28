@@ -288,21 +288,19 @@ def verify_token(token: str) -> dict | None:
             conn.close()
             return None
         if time.time() > row["expires_at"]:
-            # Session expired — but since TTL is 100 years, this rarely happens.
-            # Instead of deleting, extend the session so tokens are effectively permanent.
             now_ts = time.time()
             conn.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (now_ts + SESSION_TTL, token))
             conn.commit()
-            conn.close()
-            # Re-verify with the extended session
-            return verify_token(token)
         user = conn.execute("SELECT * FROM users WHERE id = ?", (row["user_id"],)).fetchone()
         conn.close()
         if not user:
             return None
         return {"id": user["id"], "username": user["username"], "display_name": user["display_name"], "token": token}
     except Exception:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
         return None
 
 
