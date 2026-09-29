@@ -25,8 +25,26 @@ os.environ.setdefault("DEMO_HOST", "127.0.0.1")
 os.environ.setdefault("LOCAL_CLIENT", "1")
 
 
+def load_env_file():
+    """Load .env file from exe directory (or script dir when not frozen)."""
+    env_path = APP_ROOT / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = val
+
+
 def setup_frozen_paths():
-    """When frozen, patch app module paths so data files are found correctly."""
+    """When frozen, patch app module paths so data files are found correctly.
+    Database (Turso) is NOT overridden — uses TURSO_URL env var for cloud DB, same as Railway."""
     if not getattr(sys, 'frozen', False):
         return
 
@@ -40,15 +58,9 @@ def setup_frozen_paths():
     app_module.CONFIG_PATH = APP_ROOT / "config.yaml"
     app_module.REPORTS_DIR = runtime_dir / "reports"
     app_module.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    app_module.DB_PATH = runtime_dir / "state.sqlite"
     app_module.WIKI_DIR = frozen_root / "wiki"
     app_module.STATIC_DIR = frozen_root / "demo_app" / "static"
     app_module.LAYER3_EXCEL_PATH = runtime_dir / "Export_Markets_Layer3_Comparison.xlsx"
-
-    import auth as auth_module
-    auth_module.APP_ROOT = APP_ROOT
-    auth_module.DB_PATH = runtime_dir / "users.sqlite"
-    auth_module.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     for d in ["scripts", "wiki"]:
         scripts_dir = frozen_root / d
@@ -116,12 +128,19 @@ def main():
     sys.path.insert(0, str(APP_ROOT / "demo_app"))
     sys.path.insert(0, str(APP_ROOT))
 
+    load_env_file()
+
     setup_frozen_paths()
 
     port = find_free_port()
     os.environ["PORT"] = str(port)
     os.environ["LOCAL_CLIENT"] = "1"
     url = f"http://127.0.0.1:{port}"
+
+    if os.environ.get("TURSO_URL"):
+        print(f"[GRC Agent] Cloud DB: {os.environ['TURSO_URL'][:30]}...")
+    else:
+        print("[GRC Agent] WARNING: TURSO_URL not set. Create .env file with Turso credentials.")
 
     print(f"[GRC Agent] Starting local server on {url}")
 
