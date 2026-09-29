@@ -285,15 +285,16 @@ def fetch_emails(user_keywords=None, user_lookback=None) -> dict:
     import traceback
     import logging
 
-    bridge_result = _try_bridge("scan_emails", {
-        "keywords": user_keywords or [],
-        "days_back": user_lookback or 3,
-        "limit": 50,
-    }, timeout=30)
-    if bridge_result is not None:
-        if bridge_result.get("ok"):
-            return {"emails": bridge_result.get("data", {}).get("emails", [])}
-        return {"emails": [], "error": bridge_result.get("error", "bridge error")}
+    if not os.environ.get("LOCAL_CLIENT"):
+        bridge_result = _try_bridge("scan_emails", {
+            "keywords": user_keywords or [],
+            "days_back": user_lookback or 3,
+            "limit": 50,
+        }, timeout=30)
+        if bridge_result is not None:
+            if bridge_result.get("ok"):
+                return {"emails": bridge_result.get("data", {}).get("emails", [])}
+            return {"emails": [], "error": bridge_result.get("error", "bridge error")}
 
     sys.path.insert(0, str(APP_ROOT))
     try:
@@ -529,6 +530,8 @@ def _current_username() -> str | None:
 
 def _try_bridge(command: str, params: dict = None, timeout: float = 30.0) -> dict | None:
     """Try to route a command through the bridge if connected. Returns None if no bridge."""
+    if os.environ.get("LOCAL_CLIENT"):
+        return None
     username = _current_username()
     if not username:
         return None
