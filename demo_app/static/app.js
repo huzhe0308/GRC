@@ -134,23 +134,60 @@ const labels = {
 }
 
 function renderMarkdown(markdown = "") {
-  const source = String(markdown || "");
+  let source = String(markdown || "");
   if (!source.trim()) {
     return '<p class="empty-copy">No content yet.</p>';
   }
+
+  let metaHtml = "";
+  const fmMatch = source.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (fmMatch) {
+    source = source.slice(fmMatch[0].length);
+    const metaLines = fmMatch[1].split("\n");
+    const metaItems = [];
+    for (const line of metaLines) {
+      const m = line.match(/^(\w+):\s*(.*)$/);
+      if (m) {
+        const key = m[1];
+        let val = m[2].replace(/^["']|["']$/g, "");
+        if (key === "sha256") val = val.substring(0, 12) + "...";
+        if (val) metaItems.push(`<span class="wiki-meta-tag"><b>${escapeHtml(key)}</b> ${escapeHtml(val)}</span>`);
+      }
+    }
+    if (metaItems.length) {
+      metaHtml = `<div class="wiki-frontmatter">${metaItems.join("")}</div>`;
+    }
+  }
+
+  source = source.replace(/<!--\s*Page\s+\d+\s*-->/g, '<div class="wiki-page-break"></div>');
+  source = source.replace(/^!image\s*$/gm, '<div class="wiki-image-placeholder">🖼️ Image</div>');
+  source = source.replace(/^INTERNAL\s*$/gm, '<span class="wiki-tag wiki-tag-internal">INTERNAL</span>');
+  source = source.replace(/^Klassifizierung:\s*(.+)$/gm, '<div class="wiki-classification">Klassifizierung: <b>$1</b></div>');
 
   const blocks = source.replace(/\r/g, "").split(/\n{2,}/);
   const rendered = blocks
     .map((block) => {
       const trimmed = block.trim();
       if (!trimmed) return "";
+      if (trimmed.startsWith('<div class="wiki-page-break"')) {
+        return trimmed;
+      }
+      if (trimmed.startsWith('<div class="wiki-image-placeholder"')) {
+        const count = (trimmed.match(/wiki-image-placeholder/g) || []).length;
+        if (count > 1) {
+          return '<div class="wiki-image-grid">' + trimmed.replace(/<div class="wiki-image-placeholder">🖼️ Image<\/div>/g, '<div class="wiki-image-tile">🖼️</div>') + '</div>';
+        }
+        return trimmed;
+      }
+      if (trimmed.startsWith('<span class="wiki-tag')) return trimmed;
+      if (trimmed.startsWith('<div class="wiki-classification')) return trimmed;
       if (trimmed.startsWith("```")) {
         const inner = trimmed.replace(/^```[a-zA-Z0-9_-]*\n?/, "").replace(/```$/, "");
         return `<pre><code>${escapeHtml(inner)}</code></pre>`;
       }
-      if (/^#{1,3}\s+/.test(trimmed)) {
-        const level = trimmed.match(/^#{1,3}/)[0].length;
-        const text = trimmed.replace(/^#{1,3}\s+/, "");
+      if (/^#{1,6}\s+/.test(trimmed)) {
+        const level = trimmed.match(/^#{1,6}/)[0].length;
+        const text = trimmed.replace(/^#{1,6}\s+/, "");
         return `<h${level}>${inlineMarkdown(text)}</h${level}>`;
       }
       if (/^[-*]\s+/.test(trimmed)) {
@@ -162,11 +199,33 @@ function renderMarkdown(markdown = "") {
           .join("");
         return `<ul>${items}</ul>`;
       }
+      if (/^\d+\.\s+/.test(trimmed)) {
+        const items = trimmed
+          .split(/\n/)
+          .map((line) => line.replace(/^\d+\.\s+/, "").trim())
+          .filter(Boolean)
+          .map((item) => `<li>${inlineMarkdown(item)}</li>`)
+          .join("");
+        return `<ol>${items}</ol>`;
+      }
+      if (/^\|.+\|/.test(trimmed) && trimmed.includes("|")) {
+        const rows = trimmed.split("\n").filter((r) => r.trim().startsWith("|"));
+        if (rows.length >= 2) {
+          const headerCells = rows[0].split("|").filter((c) => c.trim()).map((c) => `<th>${inlineMarkdown(c.trim())}</th>`).join("");
+          const bodyRows = rows.slice(rows[1].match(/^\|[-:|\s]+\|$/) ? 2 : 1)
+            .map((r) => {
+              const cells = r.split("|").filter((c) => c.trim()).map((c) => `<td>${inlineMarkdown(c.trim())}</td>`).join("");
+              return `<tr>${cells}</tr>`;
+            }).join("");
+          return `<table class="wiki-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+        }
+      }
       return `<p>${inlineMarkdown(trimmed).replace(/\n/g, "<br>")}</p>`;
     })
     .filter(Boolean)
     .join("");
-  return rendered;
+
+  return metaHtml + rendered;
 }
 
 function inlineMarkdown(text) {
