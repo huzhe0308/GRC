@@ -178,27 +178,39 @@ python local_client.py
 # URL: https://grc-production-efc4.up.railway.app
 ```
 
-## Building the Local Client exe
+## Building & Packaging Local Client
 
+### One-Command Build + Zip
 ```powershell
-# Build
-python -m PyInstaller GRCAgent.spec --noconfirm
-
-# Output: dist/GRCAgent.exe (~37 MB)
-
-# Test
-.\dist\GRCAgent.exe
+python build_portable.py
 ```
 
-### Creating Distribution Package
-```powershell
-# Prepare portable folder
-Copy-Item dist\GRCAgent.exe GRC-Agent-Portable\
-Copy-Item .env GRC-Agent-Portable\       # Pre-filled Turso credentials
-Copy-Item contacts.json GRC-Agent-Portable\
+This script:
+1. Runs PyInstaller to build `dist/GRCAgent.exe`
+2. Assembles `GRC-Agent-Portable/` folder (exe + .env + contacts.json + 启动.bat + README.txt)
+3. Creates `GRC-Agent-Portable.zip` for distribution
 
-# Create zip for distribution
-Compress-Archive -Path GRC-Agent-Portable\* -DestinationPath Desktop\GRC-Agent-Portable.zip
+Output:
+```
+regulation-ai/
+├── dist/GRCAgent.exe                    # Built exe (~37 MB)
+├── GRC-Agent-Portable/                  # Portable folder
+│   ├── GRCAgent.exe
+│   ├── .env                              # Pre-filled Turso credentials
+│   ├── contacts.json
+│   ├── 启动.bat                           # Double-click to launch
+│   ├── README.txt
+│   └── runtime/
+└── GRC-Agent-Portable.zip               # Distribution package (~37 MB)
+```
+
+### Manual Build (step by step)
+```powershell
+# 1. Build exe
+python -m PyInstaller GRCAgent.spec --noconfirm
+
+# 2. Test
+.\dist\GRCAgent.exe
 ```
 
 ### End User Usage
