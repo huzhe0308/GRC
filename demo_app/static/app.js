@@ -3594,17 +3594,24 @@ async function checkBridgeStatus() {
     const text = document.getElementById("bridgeStatusText");
     if (data.connected) {
       bar.className = "bridge-bar connected";
-      text.textContent = `Outlook Bridge: Connected (${data.username})`;
+      if (data.local_mode) {
+        text.textContent = "Outlook: Direct connection (Local Client)";
+      } else {
+        text.textContent = `Outlook Bridge: Connected (${data.username})`;
+      }
     } else {
       bar.className = "bridge-bar disconnected";
       text.textContent = "Outlook Bridge: Not connected";
+    }
+    if (data.local_mode) {
+      const btn = document.getElementById("bridgeTokenBtn");
+      if (btn) btn.style.display = "none";
     }
   } catch (e) {}
 }
 checkBridgeStatus();
 setInterval(checkBridgeStatus, 10000);
 
-// Token modal
 const tokenBtn = document.getElementById("bridgeTokenBtn");
 const tokenModal = document.getElementById("bridgeTokenModal");
 const closeTokenModal = document.getElementById("closeTokenModal");
