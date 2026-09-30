@@ -519,7 +519,7 @@ import threading as _threading
 
 _thread_local = _threading.local()
 
-_PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/register"}
+_PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/register", "/"}
 
 
 def _current_username() -> str | None:
@@ -695,19 +695,20 @@ class DemoHandler(BaseHTTPRequestHandler):
             
             if path == "/login":
                 return self.serve_static("login.html", "text/html; charset=utf-8")
-            
-            if self._auth_required():
-                return
-            
-            # Debug logging
-            print(f"[API] GET {path} query={dict(qs)}")
-            
+
+            # Serve static files and main page without auth (frontend JS checks token)
             if path == "/":
                 return self.serve_static("index.html", "text/html; charset=utf-8")
             if path.startswith("/static/"):
                 rel = path.removeprefix("/static/")
                 ctype = "application/javascript; charset=utf-8" if rel.endswith(".js") else "text/css; charset=utf-8"
                 return self.serve_static(rel, ctype)
+            
+            if self._auth_required():
+                return
+            
+            # Debug logging
+            print(f"[API] GET {path} query={dict(qs)}")
             if path == "/api/status":
                 cfg = load_config()
                 llm = cfg.get("llm", {}) if isinstance(cfg.get("llm", {}), dict) else {}
@@ -851,6 +852,8 @@ class DemoHandler(BaseHTTPRequestHandler):
                 return json_response(self, {"settings": {}, "llm": {}, "user": None})
             if path == "/api/bridge/status":
                 user = getattr(self, "_current_user", None)
+                if os.environ.get("LOCAL_CLIENT"):
+                    return json_response(self, {"connected": True, "local_mode": True, "message": "Direct Outlook connection (local client)"})
                 from bridge_manager import get_bridge_status
                 status = get_bridge_status(user["username"] if user else "")
                 ws_port_val = int(os.environ.get("WS_PORT", str(int(os.environ.get("PORT", "7860")) + 1)))
@@ -3414,7 +3417,7 @@ def _market_topic_ticket(market: dict, topic: str) -> str | None:
 
 def _ensure_gap_table() -> None:
     with _get_db() as conn:
-        conn.execute("""
+        conn.executescript("""
             CREATE TABLE IF NOT EXISTS gap_market_tracking (
                 market TEXT NOT NULL,
                 topic TEXT NOT NULL,
@@ -3423,34 +3426,16 @@ def _ensure_gap_table() -> None:
                 comments_total INTEGER DEFAULT 0,
                 gap_summary TEXT DEFAULT '',
                 updated_at TEXT,
+                manual_override INTEGER DEFAULT 0,
+                manual_comment_count INTEGER DEFAULT -1,
                 PRIMARY KEY (market, topic)
-            )
-        """)
-        conn.execute("""
+            );
             CREATE TABLE IF NOT EXISTS gap_layer3_closed (
                 market TEXT PRIMARY KEY,
                 ticket TEXT NOT NULL,
                 closed_at TEXT,
                 gap_summary TEXT DEFAULT ''
-            )
-        """)
-        try:
-            conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN gap_summary TEXT DEFAULT ''")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE gap_layer3_closed ADD COLUMN gap_summary TEXT DEFAULT ''")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN manual_override INTEGER DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE gap_market_tracking ADD COLUMN manual_comment_count INTEGER DEFAULT -1")
-        except Exception:
-            pass
-        conn.execute("""
+            );
             CREATE TABLE IF NOT EXISTS gap_inspection_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_at TEXT NOT NULL,
@@ -3458,26 +3443,20 @@ def _ensure_gap_table() -> None:
                 tickets_checked INTEGER DEFAULT 0,
                 changed INTEGER DEFAULT 0,
                 details TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
+            );
             CREATE TABLE IF NOT EXISTS assessment_sent (
                 ticket TEXT PRIMARY KEY,
                 parent_key TEXT DEFAULT '',
                 sent_at TEXT,
                 recipients TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
+            );
             CREATE TABLE IF NOT EXISTS registered_tickets (
                 ticket_key TEXT PRIMARY KEY,
                 registered_by TEXT DEFAULT '',
                 registered_at TEXT,
                 jira_status TEXT DEFAULT '',
                 jira_summary TEXT DEFAULT ''
-            )
-        """)
-        conn.execute("""
+            );
             CREATE TABLE IF NOT EXISTS monthly_report_data (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 market_rows TEXT DEFAULT '[]',
