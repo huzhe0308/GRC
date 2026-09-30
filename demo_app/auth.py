@@ -80,8 +80,24 @@ class _TursoConn:
 
     def executescript(self, script: str) -> None:
         statements = [s.strip() for s in script.split(";") if s.strip()]
-        for stmt in statements:
-            self._execute(stmt, [])
+        if not statements:
+            return
+        # Batch all statements into a single HTTP request (pipeline)
+        requests = [{"type": "execute", "stmt": {"sql": s, "args": []}} for s in statements]
+        requests.append({"type": "close"})
+        try:
+            resp = self._requests.post(
+                f"{self._url}/v2/pipeline",
+                headers=self._headers,
+                json={"requests": requests},
+                timeout=30,
+            )
+        except Exception as e:
+            print(f"[turso] executescript failed: {e}", flush=True)
+            raise
+        if resp.status_code != 200:
+            print(f"[turso] executescript HTTP {resp.status_code}", flush=True)
+            resp.raise_for_status()
 
     def execute(self, sql: str, params=None) -> Any:
         return self._execute(sql, params or [])
