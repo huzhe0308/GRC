@@ -8,6 +8,25 @@ import webbrowser
 from pathlib import Path
 
 
+def _crash_log(exc_type, exc_value, exc_tb):
+    """Global crash handler — write uncaught exceptions to file."""
+    try:
+        import traceback
+        crash_path = Path(sys.executable).resolve().parent / "runtime" / "crash.log"
+        if not getattr(sys, 'frozen', False):
+            crash_path = Path(__file__).resolve().parent / "runtime" / "crash.log"
+        crash_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(crash_path, "a", encoding="utf-8") as f:
+            f.write(f"=== {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+            f.write("".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+            f.write("\n")
+    except Exception:
+        pass
+
+
+sys.excepthook = _crash_log
+
+
 def get_app_root():
     """Determine the application root directory.
 
@@ -40,6 +59,17 @@ def load_env_file():
             val = val.strip().strip('"').strip("'")
             if key and key not in os.environ:
                 os.environ[key] = val
+
+
+def _log(msg):
+    """Write to startup log file for debugging frozen exe."""
+    try:
+        log_path = APP_ROOT / "runtime" / "startup.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
 
 
 def setup_frozen_paths():
@@ -123,12 +153,21 @@ def run_tray(port):
 
 
 def main():
+    _log("=== main() started ===")
     ensure_dirs()
 
     sys.path.insert(0, str(APP_ROOT / "demo_app"))
     sys.path.insert(0, str(APP_ROOT))
 
     load_env_file()
+
+    # Ensure proxy env vars are set for Turso/external HTTP requests
+    # (frozen exe may not inherit system proxy settings in some cases)
+    if not os.environ.get("HTTPS_PROXY") and not os.environ.get("https_proxy"):
+        proxy = os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+        if proxy:
+            os.environ["HTTPS_PROXY"] = proxy
+            os.environ["https_proxy"] = proxy
 
     setup_frozen_paths()
 
@@ -138,32 +177,52 @@ def main():
     url = f"http://127.0.0.1:{port}"
 
     if os.environ.get("TURSO_URL"):
-        print(f"[GRC Agent] Cloud DB: {os.environ['TURSO_URL'][:30]}...")
+        _log(f"Cloud DB: {os.environ['TURSO_URL'][:30]}...")
     else:
-        print("[GRC Agent] WARNING: TURSO_URL not set. Create .env file with Turso credentials.")
+        _log("WARNING: TURSO_URL not set")
 
-    print(f"[GRC Agent] Starting local server on {url}")
+    _log(f"Starting local server on {url}")
 
     def run_server():
         try:
+            _log("Server thread: importing auth...")
             from auth import init_db as init_auth_db
+            _log("Server thread: auth imported, calling init_db...")
             init_auth_db()
+            _log("Server thread: init_db done")
 
+            _log("Server thread: importing DemoHandler...")
             from http.server import ThreadingHTTPServer
             from app import DemoHandler
+            _log("Server thread: DemoHandler imported")
 
             server = ThreadingHTTPServer(("127.0.0.1", port), DemoHandler)
-            print(f"[GRC Agent] Server running at {url}")
+            _log(f"Server thread: bound to port {port}")
             server.serve_forever()
         except Exception as e:
-            print(f"[GRC Agent] Server error: {e}")
+            _log(f"Server ERROR: {e}")
             import traceback
-            traceback.print_exc()
+            _log(traceback.format_exc())
 
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
 
-    time.sleep(2.0)
+    # Wait for server to be ready (up to 15s)
+    ready = False
+    for _ in range(15):
+        time.sleep(1)
+        try:
+            import urllib.request
+            urllib.request.urlopen(f"{url}/login", timeout=1)
+            ready = True
+            _log("Server is ready!")
+            break
+        except Exception:
+            pass
+    if not ready:
+        _log("WARNING: Server not ready after 15s, opening window anyway")
+
+    _log("Main thread: starting pywebview...")
 
     try:
         import webview
